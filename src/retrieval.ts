@@ -60,9 +60,11 @@ export interface DescribeResult {
   };
 }
 
+import type { SearchMode } from "./store/conversation-store.js";
+
 export interface GrepInput {
   query: string;
-  mode: "regex" | "full_text";
+  mode: SearchMode;
   scope: "messages" | "summaries" | "both";
   conversationId?: number;
   since?: Date;

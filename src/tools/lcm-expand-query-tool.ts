@@ -255,6 +255,7 @@ async function resolveSummaryCandidates(params: {
   query?: string;
   conversationId?: number;
 }): Promise<SummaryCandidate[]> {
+  await params.lcm.whenReady();
   const retrieval = params.lcm.getRetrieval();
   const candidates = new Map<string, SummaryCandidate>();
 

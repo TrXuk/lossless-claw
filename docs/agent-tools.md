@@ -30,14 +30,14 @@ Summaries are lossy by design. The "Expand for details about:" footer at the end
 
 ### lcm_grep
 
-Search across messages and/or summaries using regex or full-text search.
+Search across messages and/or summaries using regex, full-text, hybrid (keyword + semantic), or semantic-only search.
 
 **Parameters:**
 
 | Param | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `pattern` | string | ✅ | — | Search pattern |
-| `mode` | string | | `"regex"` | `"regex"` or `"full_text"` |
+| `mode` | string | | `"regex"` | `"regex"`, `"full_text"`, `"hybrid"` (keyword + semantic, MongoDB only), or `"semantic"` (vector only, MongoDB only) |
 | `scope` | string | | `"both"` | `"messages"`, `"summaries"`, or `"both"` |
 | `conversationId` | number | | current | Specific conversation to search |
 | `allConversations` | boolean | | `false` | Search all conversations |
@@ -58,6 +58,12 @@ Search across messages and/or summaries using regex or full-text search.
 ```
 # Full-text search across all conversations
 lcm_grep(pattern: "database migration", mode: "full_text", allConversations: true)
+
+# Hybrid search (keyword + semantic) when using MongoDB with Vector Search indexes
+lcm_grep(pattern: "error handling approach", mode: "hybrid", scope: "summaries")
+
+# Semantic-only search for meaning-based retrieval (MongoDB only)
+lcm_grep(pattern: "how do we handle authentication", mode: "semantic")
 
 # Regex search in summaries only
 lcm_grep(pattern: "config\\.threshold.*0\\.[0-9]+", scope: "summaries")

@@ -65,6 +65,7 @@ export function createLcmDescribeTool(input: {
       "token counts, and file exploration results.",
     parameters: LcmDescribeSchema,
     async execute(_toolCallId, params) {
+      await input.lcm.whenReady();
       const retrieval = input.lcm.getRetrieval();
       const timezone = input.lcm.timezone;
       const p = params as Record<string, unknown>;

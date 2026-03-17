@@ -13,6 +13,7 @@ export type {
   CreateConversationInput,
   MessageSearchInput,
   MessageSearchResult,
+  SearchMode,
 } from "./conversation-store.js";
 
 export { SummaryStore } from "./summary-store.js";

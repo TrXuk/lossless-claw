@@ -1,9 +1,21 @@
 import { homedir } from "os";
 import { join } from "path";
 
+export type StorageBackend = "sqlite" | "mongodb";
+
 export type LcmConfig = {
   enabled: boolean;
+  /** Storage backend: sqlite (default) or mongodb */
+  storageBackend: StorageBackend;
   databasePath: string;
+  /** MongoDB connection URI (used when storageBackend is mongodb) */
+  mongodbUri: string;
+  /** MongoDB database name (used when storageBackend is mongodb) */
+  mongodbDatabase: string;
+  /** Atlas Vector Search index name for messages (used when storageBackend is mongodb and mode is hybrid/semantic) */
+  vectorSearchIndexMessages: string;
+  /** Atlas Vector Search index name for summaries (used when storageBackend is mongodb and mode is hybrid/semantic) */
+  vectorSearchIndexSummaries: string;
   contextThreshold: number;
   freshTailCount: number;
   leafMinFanout: number;
@@ -65,16 +77,36 @@ export function resolveLcmConfig(
 ): LcmConfig {
   const pc = pluginConfig ?? {};
 
+  const storageBackendRaw =
+    env.LCM_STORAGE_BACKEND ?? toStr(pc.storageBackend) ?? toStr(pc.storage_backend) ?? "sqlite";
+  const storageBackend: StorageBackend =
+    storageBackendRaw === "mongodb" ? "mongodb" : "sqlite";
+
   return {
     enabled:
       env.LCM_ENABLED !== undefined
         ? env.LCM_ENABLED !== "false"
         : toBool(pc.enabled) ?? true,
+    storageBackend,
     databasePath:
       env.LCM_DATABASE_PATH
       ?? toStr(pc.dbPath)
       ?? toStr(pc.databasePath)
       ?? join(homedir(), ".openclaw", "lcm.db"),
+    mongodbUri:
+      env.LCM_MONGODB_URI ?? toStr(pc.mongodbUri) ?? toStr(pc.mongodb_uri) ?? "",
+    mongodbDatabase:
+      env.LCM_MONGODB_DATABASE ?? toStr(pc.mongodbDatabase) ?? toStr(pc.mongodb_database) ?? "lcm",
+    vectorSearchIndexMessages:
+      env.LCM_VECTOR_SEARCH_INDEX_MESSAGES
+      ?? toStr(pc.vectorSearchIndexMessages)
+      ?? toStr(pc.vector_search_index_messages)
+      ?? "lcm_messages_vector",
+    vectorSearchIndexSummaries:
+      env.LCM_VECTOR_SEARCH_INDEX_SUMMARIES
+      ?? toStr(pc.vectorSearchIndexSummaries)
+      ?? toStr(pc.vector_search_index_summaries)
+      ?? "lcm_summaries_vector",
     contextThreshold:
       (env.LCM_CONTEXT_THRESHOLD !== undefined ? parseFloat(env.LCM_CONTEXT_THRESHOLD) : undefined)
         ?? toNumber(pc.contextThreshold) ?? 0.75,

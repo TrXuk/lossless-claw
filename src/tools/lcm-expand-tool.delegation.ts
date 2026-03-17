@@ -236,6 +236,7 @@ export async function resolveRequesterConversationScopeId(params: {
     if (!runtimeSessionId) {
       return undefined;
     }
+    await params.lcm.whenReady();
     const conversation = await params.lcm
       .getConversationStore()
       .getConversationBySessionId(runtimeSessionId);

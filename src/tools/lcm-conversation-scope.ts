@@ -67,6 +67,7 @@ export async function resolveLcmConversationScope(input: {
     return { conversationId: undefined, allConversations: false };
   }
 
+  await lcm.whenReady();
   const conversation = await lcm.getConversationStore().getConversationBySessionId(normalizedSessionId);
   if (!conversation) {
     return { conversationId: undefined, allConversations: false };

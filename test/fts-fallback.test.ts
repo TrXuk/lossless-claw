@@ -90,4 +90,58 @@ describe("FTS fallback", () => {
       .all() as Array<{ name: string }>;
     expect(ftsTables).toEqual([]);
   });
+
+  it("falls back hybrid and semantic modes to full_text on SQLite", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "lossless-claw-hybrid-fallback-"));
+    tempDirs.push(tempDir);
+    const dbPath = join(tempDir, "hybrid.db");
+    const db = getLcmConnection(dbPath);
+
+    runLcmMigrations(db, { fts5Available: false });
+
+    const conversationStore = new ConversationStore(db, { fts5Available: false });
+    const summaryStore = new SummaryStore(db, { fts5Available: false });
+
+    const conversation = await conversationStore.createConversation({
+      sessionId: "hybrid-fallback-session",
+      title: "Hybrid fallback",
+    });
+
+    await conversationStore.createMessagesBulk([
+      {
+        conversationId: conversation.conversationId,
+        seq: 1,
+        role: "user",
+        content: "Semantic search fallback test content.",
+        tokenCount: 6,
+      },
+    ]);
+
+    await summaryStore.insertSummary({
+      summaryId: "sum_hybrid",
+      conversationId: conversation.conversationId,
+      kind: "leaf",
+      depth: 0,
+      content: "Hybrid mode falls back to keyword search on SQLite.",
+      tokenCount: 10,
+    });
+
+    const hybridMessageResults = await conversationStore.searchMessages({
+      query: "semantic",
+      mode: "hybrid",
+      conversationId: conversation.conversationId,
+      limit: 10,
+    });
+    expect(hybridMessageResults).toHaveLength(1);
+    expect(hybridMessageResults[0]?.snippet.toLowerCase()).toContain("semantic");
+
+    const semanticSummaryResults = await summaryStore.searchSummaries({
+      query: "hybrid",
+      mode: "semantic",
+      conversationId: conversation.conversationId,
+      limit: 10,
+    });
+    expect(semanticSummaryResults).toHaveLength(1);
+    expect(semanticSummaryResults[0]?.summaryId).toBe("sum_hybrid");
+  });
 });

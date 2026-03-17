@@ -11,13 +11,13 @@ const MAX_RESULT_CHARS = 40_000; // ~10k tokens
 const LcmGrepSchema = Type.Object({
   pattern: Type.String({
     description:
-      "Search pattern. Interpreted as regex when mode is 'regex', or as a text query for 'full_text' mode.",
+      "Search pattern. Interpreted as regex when mode is 'regex', or as a text query for 'full_text'/'hybrid'/'semantic' modes.",
   }),
   mode: Type.Optional(
     Type.String({
       description:
-        'Search mode: "regex" for regular expression matching, "full_text" for text search. Default: "regex".',
-      enum: ["regex", "full_text"],
+        'Search mode: "regex" for regular expression matching, "full_text" for keyword text search, "hybrid" for keyword + semantic (MongoDB only), "semantic" for vector/semantic search only (MongoDB only). Default: "regex".',
+      enum: ["regex", "full_text", "hybrid", "semantic"],
     }),
   ),
   scope: Type.Optional(
@@ -83,12 +83,13 @@ export function createLcmGrepTool(input: {
       "for follow-up with lcm_expand or lcm_describe.",
     parameters: LcmGrepSchema,
     async execute(_toolCallId, params) {
+      await input.lcm.whenReady();
       const retrieval = input.lcm.getRetrieval();
       const timezone = input.lcm.timezone;
 
       const p = params as Record<string, unknown>;
       const pattern = (p.pattern as string).trim();
-      const mode = (p.mode as "regex" | "full_text") ?? "regex";
+      const mode = (p.mode as "regex" | "full_text" | "hybrid" | "semantic") ?? "regex";
       const scope = (p.scope as "messages" | "summaries" | "both") ?? "both";
       const limit = typeof p.limit === "number" ? Math.trunc(p.limit) : 50;
       let since: Date | undefined;

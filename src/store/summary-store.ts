@@ -52,10 +52,12 @@ export type ContextItemRecord = {
   createdAt: Date;
 };
 
+import type { SearchMode } from "./conversation-store.js";
+
 export type SummarySearchInput = {
   conversationId?: number;
   query: string;
-  mode: "regex" | "full_text";
+  mode: SearchMode;
   since?: Date;
   before?: Date;
   limit?: number;
@@ -695,6 +697,10 @@ export class SummaryStore {
 
   async searchSummaries(input: SummarySearchInput): Promise<SummarySearchResult[]> {
     const limit = input.limit ?? 50;
+
+    if (input.mode === "hybrid" || input.mode === "semantic") {
+      input = { ...input, mode: "full_text" };
+    }
 
     if (input.mode === "full_text") {
       if (this.fts5Available) {

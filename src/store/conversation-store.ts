@@ -79,10 +79,12 @@ export type ConversationRecord = {
   updatedAt: Date;
 };
 
+export type SearchMode = "regex" | "full_text" | "hybrid" | "semantic";
+
 export type MessageSearchInput = {
   conversationId?: ConversationId;
   query: string;
-  mode: "regex" | "full_text";
+  mode: SearchMode;
   since?: Date;
   before?: Date;
   limit?: number;
@@ -554,6 +556,10 @@ export class ConversationStore {
 
   async searchMessages(input: MessageSearchInput): Promise<MessageSearchResult[]> {
     const limit = input.limit ?? 50;
+
+    if (input.mode === "hybrid" || input.mode === "semantic") {
+      input = { ...input, mode: "full_text" };
+    }
 
     if (input.mode === "full_text") {
       if (this.fts5Available) {

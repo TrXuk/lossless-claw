@@ -20,6 +20,7 @@ import type { LcmConfig } from "./db/config.js";
 import { getLcmConnection, closeLcmConnection } from "./db/connection.js";
 import { getLcmDbFeatures } from "./db/features.js";
 import { runLcmMigrations } from "./db/migration.js";
+import { createStores } from "./store/factory.js";
 import {
   createDelegatedExpansionGrant,
   removeDelegatedExpansionGrantForSession,
@@ -32,12 +33,12 @@ import {
   parseFileBlocks,
 } from "./large-files.js";
 import { RetrievalEngine } from "./retrieval.js";
-import {
+import type {
   ConversationStore,
-  type CreateMessagePartInput,
-  type MessagePartType,
+  CreateMessagePartInput,
+  MessagePartType,
 } from "./store/conversation-store.js";
-import { SummaryStore } from "./store/summary-store.js";
+import type { SummaryStore } from "./store/summary-store.js";
 import { createLcmSummarizeFromLegacyParams } from "./summarize.js";
 import type { LcmDependencies } from "./types.js";
 
@@ -586,13 +587,14 @@ export class LcmContextEngine implements ContextEngine {
     return this.config.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
 
-  private conversationStore: ConversationStore;
-  private summaryStore: SummaryStore;
-  private assembler: ContextAssembler;
-  private compaction: CompactionEngine;
-  private retrieval: RetrievalEngine;
+  private conversationStore!: ConversationStore;
+  private summaryStore!: SummaryStore;
+  private assembler!: ContextAssembler;
+  private compaction!: CompactionEngine;
+  private retrieval!: RetrievalEngine;
   private migrated = false;
   private readonly fts5Available: boolean;
+  private readonly _ready: Promise<void>;
   private sessionOperationQueues = new Map<string, Promise<void>>();
   private largeFileTextSummarizerResolved = false;
   private largeFileTextSummarizer?: (prompt: string) => Promise<string | null>;
@@ -602,49 +604,66 @@ export class LcmContextEngine implements ContextEngine {
     this.deps = deps;
     this.config = deps.config;
 
-    const db = getLcmConnection(this.config.databasePath);
-    this.fts5Available = getLcmDbFeatures(db).fts5Available;
+    this.fts5Available =
+      this.config.storageBackend === "sqlite"
+        ? getLcmDbFeatures(getLcmConnection(this.config.databasePath)).fts5Available
+        : true;
 
-    this.conversationStore = new ConversationStore(db, { fts5Available: this.fts5Available });
-    this.summaryStore = new SummaryStore(db, { fts5Available: this.fts5Available });
-
-    if (!this.fts5Available) {
-      this.deps.log.warn(
-        "[lcm] FTS5 unavailable in the current Node runtime; full_text search will fall back to LIKE and indexing is disabled",
-      );
-    }
-
-    this.assembler = new ContextAssembler(
-      this.conversationStore,
-      this.summaryStore,
-      this.config.timezone,
-    );
-
-    const compactionConfig: CompactionConfig = {
-      contextThreshold: this.config.contextThreshold,
-      freshTailCount: this.config.freshTailCount,
-      leafMinFanout: this.config.leafMinFanout,
-      condensedMinFanout: this.config.condensedMinFanout,
-      condensedMinFanoutHard: this.config.condensedMinFanoutHard,
-      incrementalMaxDepth: this.config.incrementalMaxDepth,
-      leafChunkTokens: this.config.leafChunkTokens,
-      leafTargetTokens: this.config.leafTargetTokens,
-      condensedTargetTokens: this.config.condensedTargetTokens,
-      maxRounds: 10,
-      timezone: this.config.timezone,
-    };
-    this.compaction = new CompactionEngine(
-      this.conversationStore,
-      this.summaryStore,
-      compactionConfig,
-    );
-
-    this.retrieval = new RetrievalEngine(this.conversationStore, this.summaryStore);
+    this._ready = this.initializeStores()
+      .then(({ conversationStore, summaryStore }) => {
+        this.conversationStore = conversationStore;
+        this.summaryStore = summaryStore;
+        if (!this.fts5Available) {
+          this.deps.log.warn(
+            "[lcm] FTS5 unavailable in the current Node runtime; full_text search will fall back to LIKE and indexing is disabled",
+          );
+        }
+        this.assembler = new ContextAssembler(
+          conversationStore,
+          summaryStore,
+          this.config.timezone,
+        );
+        const compactionConfig: CompactionConfig = {
+          contextThreshold: this.config.contextThreshold,
+          freshTailCount: this.config.freshTailCount,
+          leafMinFanout: this.config.leafMinFanout,
+          condensedMinFanout: this.config.condensedMinFanout,
+          condensedMinFanoutHard: this.config.condensedMinFanoutHard,
+          incrementalMaxDepth: this.config.incrementalMaxDepth,
+          leafChunkTokens: this.config.leafChunkTokens,
+          leafTargetTokens: this.config.leafTargetTokens,
+          condensedTargetTokens: this.config.condensedTargetTokens,
+          maxRounds: 10,
+          timezone: this.config.timezone,
+        };
+        this.compaction = new CompactionEngine(
+          conversationStore,
+          summaryStore,
+          compactionConfig,
+        );
+        this.retrieval = new RetrievalEngine(conversationStore, summaryStore);
+      });
   }
 
-  /** Ensure DB schema is up-to-date. Called lazily on first bootstrap/ingest/assemble/compact. */
+  private async initializeStores(): Promise<{
+    conversationStore: ConversationStore;
+    summaryStore: SummaryStore;
+  }> {
+    const result = await createStores(this.config, { fts5Available: this.fts5Available });
+    return {
+      conversationStore: result.conversationStore,
+      summaryStore: result.summaryStore,
+    };
+  }
+
+  /** Ensure stores are ready before use. Call at the start of async methods. */
+  private async ensureReady(): Promise<void> {
+    await this._ready;
+  }
+
+  /** Ensure DB schema is up-to-date. Called lazily on first bootstrap/ingest/assemble/compact. SQLite only. */
   private ensureMigrated(): void {
-    if (this.migrated) {
+    if (this.migrated || this.config.storageBackend !== "sqlite") {
       return;
     }
     const db = getLcmConnection(this.config.databasePath);
@@ -1005,6 +1024,7 @@ export class LcmContextEngine implements ContextEngine {
   }
 
   async bootstrap(params: { sessionId: string; sessionFile: string }): Promise<BootstrapResult> {
+    await this.ensureReady();
     this.ensureMigrated();
 
     const result = await this.withSessionQueue(params.sessionId, async () =>
@@ -1190,6 +1210,7 @@ export class LcmContextEngine implements ContextEngine {
     message: AgentMessage;
     isHeartbeat?: boolean;
   }): Promise<IngestResult> {
+    await this.ensureReady();
     this.ensureMigrated();
     return this.withSessionQueue(params.sessionId, () => this.ingestSingle(params));
   }
@@ -1199,6 +1220,7 @@ export class LcmContextEngine implements ContextEngine {
     messages: AgentMessage[];
     isHeartbeat?: boolean;
   }): Promise<IngestBatchResult> {
+    await this.ensureReady();
     this.ensureMigrated();
     if (params.messages.length === 0) {
       return { ingestedCount: 0 };
@@ -1229,6 +1251,7 @@ export class LcmContextEngine implements ContextEngine {
     tokenBudget?: number;
     legacyCompactionParams?: Record<string, unknown>;
   }): Promise<void> {
+    await this.ensureReady();
     this.ensureMigrated();
 
     const ingestBatch: AgentMessage[] = [];
@@ -1304,6 +1327,7 @@ export class LcmContextEngine implements ContextEngine {
     tokenBudget?: number;
   }): Promise<AssembleResult> {
     try {
+      await this.ensureReady();
       this.ensureMigrated();
 
       const conversation = await this.conversationStore.getConversationBySessionId(
@@ -1481,6 +1505,7 @@ export class LcmContextEngine implements ContextEngine {
     /** Force compaction even if below threshold */
     force?: boolean;
   }): Promise<CompactResult> {
+    await this.ensureReady();
     this.ensureMigrated();
     return this.withSessionQueue(params.sessionId, async () => {
       const { sessionId, force = false } = params;
@@ -1686,6 +1711,11 @@ export class LcmContextEngine implements ContextEngine {
   }
 
   // ── Public accessors for retrieval (used by subagent expansion) ─────────
+
+  /** Resolve when stores are ready. Call before using getRetrieval/getConversationStore/getSummaryStore. */
+  whenReady(): Promise<void> {
+    return this.ensureReady();
+  }
 
   getRetrieval(): RetrievalEngine {
     return this.retrieval;

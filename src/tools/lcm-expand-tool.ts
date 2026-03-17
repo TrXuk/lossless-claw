@@ -139,6 +139,7 @@ export function createLcmExpandTool(input: {
       "with cited IDs for follow-up.",
     parameters: LcmExpandSchema,
     async execute(_toolCallId, params) {
+      await input.lcm.whenReady();
       const retrieval = input.lcm.getRetrieval();
       const orchestrator = new ExpansionOrchestrator(retrieval);
       const runtimeAuthManager = getRuntimeExpansionAuthManager();
