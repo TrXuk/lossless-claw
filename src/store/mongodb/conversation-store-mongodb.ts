@@ -37,12 +37,15 @@ export class ConversationStoreMongoDB {
   private summaryMessages: Collection;
   private contextItems: Collection;
   private readonly fts5Available: boolean;
+  private readonly searchIndexMessages: string;
   private readonly vectorSearchIndexMessages: string;
 
   constructor(
     db: Db,
     options?: {
       fts5Available?: boolean;
+      searchIndexMessages?: string;
+      searchIndexSummaries?: string;
       vectorSearchIndexMessages?: string;
       vectorSearchIndexSummaries?: string;
     },
@@ -54,6 +57,7 @@ export class ConversationStoreMongoDB {
     this.summaryMessages = db.collection("summary_messages");
     this.contextItems = db.collection("context_items");
     this.fts5Available = options?.fts5Available ?? true;
+    this.searchIndexMessages = options?.searchIndexMessages ?? "lcm_messages_search";
     this.vectorSearchIndexMessages = options?.vectorSearchIndexMessages ?? "lcm_messages_vector";
   }
 
@@ -266,13 +270,77 @@ export class ConversationStoreMongoDB {
     if (input.mode === "hybrid") {
       const keywordInput = { ...input, mode: "full_text" as const };
       const [keywordResults, vectorResults] = await Promise.all([
-        this.searchKeywordMessages(keywordInput, limit),
+        this.searchKeywordOrAtlasMessages(keywordInput, limit),
         this.searchVectorMessages(input, limit).catch(() => [] as MessageSearchResult[]),
       ]);
       return mergeWithRRF(keywordResults, vectorResults, limit, "messageId");
     }
 
+    return this.searchKeywordOrAtlasMessages(input, limit);
+  }
+
+  private async searchKeywordOrAtlasMessages(
+    input: MessageSearchInput,
+    limit: number,
+  ): Promise<MessageSearchResult[]> {
+    if (input.mode === "full_text") {
+      const plan = buildLikeSearchPlan("content", input.query);
+      if (plan.terms.length > 0) {
+        const atlas = await this.searchAtlasSearchMessages(input, limit).catch(() => null);
+        if (atlas != null) return atlas;
+      }
+    }
     return this.searchKeywordMessages(input, limit);
+  }
+
+  private async searchAtlasSearchMessages(
+    input: MessageSearchInput,
+    limit: number,
+  ): Promise<MessageSearchResult[]> {
+    const filterClauses: Record<string, unknown>[] = [];
+    if (input.conversationId != null) {
+      filterClauses.push({ equals: { path: "conversationId", value: input.conversationId } });
+    }
+    if (input.since || input.before) {
+      const range: Record<string, Date> = {};
+      if (input.since) range.gte = input.since;
+      if (input.before) range.lt = input.before;
+      filterClauses.push({ range: { path: "createdAt", ...range } });
+    }
+
+    const searchClause: Record<string, unknown> = {
+      index: this.searchIndexMessages,
+      compound: {
+        must: [{ text: { query: input.query, path: "content" } }],
+        ...(filterClauses.length > 0 ? { filter: filterClauses } : {}),
+      },
+    };
+
+    const pipeline = [
+      { $search: searchClause },
+      {
+        $project: {
+          messageId: 1,
+          conversationId: 1,
+          role: 1,
+          content: 1,
+          createdAt: 1,
+          score: { $meta: "searchScore" },
+        },
+      },
+      { $limit: limit },
+    ];
+
+    const docs = await this.messages.aggregate(pipeline).toArray();
+    const plan = buildLikeSearchPlan("content", input.query);
+    return docs.map((d) => ({
+      messageId: d.messageId,
+      conversationId: d.conversationId,
+      role: d.role as MessageRole,
+      snippet: createFallbackSnippet(d.content, plan.terms),
+      createdAt: d.createdAt,
+      rank: typeof d.score === "number" ? d.score : 0,
+    }));
   }
 
   private async searchKeywordMessages(

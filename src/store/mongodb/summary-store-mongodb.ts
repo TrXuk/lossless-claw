@@ -55,12 +55,15 @@ export class SummaryStoreMongoDB {
   private largeFiles: Collection;
   private messages: Collection;
   private readonly fts5Available: boolean;
+  private readonly searchIndexSummaries: string;
   private readonly vectorSearchIndexSummaries: string;
 
   constructor(
     db: Db,
     options?: {
       fts5Available?: boolean;
+      searchIndexMessages?: string;
+      searchIndexSummaries?: string;
       vectorSearchIndexMessages?: string;
       vectorSearchIndexSummaries?: string;
     },
@@ -72,6 +75,7 @@ export class SummaryStoreMongoDB {
     this.largeFiles = db.collection("large_files");
     this.messages = db.collection("messages");
     this.fts5Available = options?.fts5Available ?? true;
+    this.searchIndexSummaries = options?.searchIndexSummaries ?? "lcm_summaries_search";
     this.vectorSearchIndexSummaries = options?.vectorSearchIndexSummaries ?? "lcm_summaries_vector";
   }
 
@@ -361,13 +365,77 @@ export class SummaryStoreMongoDB {
     if (input.mode === "hybrid") {
       const keywordInput = { ...input, mode: "full_text" as const };
       const [keywordResults, vectorResults] = await Promise.all([
-        this.searchKeywordSummaries(keywordInput, limit),
+        this.searchKeywordOrAtlasSummaries(keywordInput, limit),
         this.searchVectorSummaries(input, limit).catch(() => [] as SummarySearchResult[]),
       ]);
       return mergeWithRRF(keywordResults, vectorResults, limit, "summaryId");
     }
 
+    return this.searchKeywordOrAtlasSummaries(input, limit);
+  }
+
+  private async searchKeywordOrAtlasSummaries(
+    input: SummarySearchInput,
+    limit: number,
+  ): Promise<SummarySearchResult[]> {
+    if (input.mode === "full_text") {
+      const plan = buildLikeSearchPlan("content", input.query);
+      if (plan.terms.length > 0) {
+        const atlas = await this.searchAtlasSearchSummaries(input, limit).catch(() => null);
+        if (atlas != null) return atlas;
+      }
+    }
     return this.searchKeywordSummaries(input, limit);
+  }
+
+  private async searchAtlasSearchSummaries(
+    input: SummarySearchInput,
+    limit: number,
+  ): Promise<SummarySearchResult[]> {
+    const filterClauses: Record<string, unknown>[] = [];
+    if (input.conversationId != null) {
+      filterClauses.push({ equals: { path: "conversationId", value: input.conversationId } });
+    }
+    if (input.since || input.before) {
+      const range: Record<string, Date> = {};
+      if (input.since) range.gte = input.since;
+      if (input.before) range.lt = input.before;
+      filterClauses.push({ range: { path: "createdAt", ...range } });
+    }
+
+    const searchClause: Record<string, unknown> = {
+      index: this.searchIndexSummaries,
+      compound: {
+        must: [{ text: { query: input.query, path: "content" } }],
+        ...(filterClauses.length > 0 ? { filter: filterClauses } : {}),
+      },
+    };
+
+    const pipeline = [
+      { $search: searchClause },
+      {
+        $project: {
+          summaryId: 1,
+          conversationId: 1,
+          kind: 1,
+          content: 1,
+          createdAt: 1,
+          score: { $meta: "searchScore" },
+        },
+      },
+      { $limit: limit },
+    ];
+
+    const docs = await this.summaries.aggregate(pipeline).toArray();
+    const plan = buildLikeSearchPlan("content", input.query);
+    return docs.map((d) => ({
+      summaryId: d.summaryId,
+      conversationId: d.conversationId,
+      kind: d.kind as SummaryKind,
+      snippet: createFallbackSnippet(d.content, plan.terms),
+      createdAt: d.createdAt,
+      rank: typeof d.score === "number" ? d.score : 0,
+    }));
   }
 
   private async searchKeywordSummaries(

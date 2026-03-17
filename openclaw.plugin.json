@@ -17,6 +17,38 @@
       "label": "Database Path",
       "help": "Path to LCM SQLite database (default: ~/.openclaw/lcm.db)"
     },
+    "storageBackend": {
+      "label": "Storage Backend",
+      "help": "Storage backend: sqlite (default) or mongodb"
+    },
+    "mongodbUri": {
+      "label": "MongoDB URI",
+      "help": "MongoDB connection URI (used when storageBackend is mongodb)"
+    },
+    "mongodbDatabase": {
+      "label": "MongoDB Database",
+      "help": "MongoDB database name (default: lcm)"
+    },
+    "searchIndexMessages": {
+      "label": "Atlas Search Index (Messages)",
+      "help": "Atlas Search full-text index name for messages (default: lcm_messages_search)"
+    },
+    "searchIndexSummaries": {
+      "label": "Atlas Search Index (Summaries)",
+      "help": "Atlas Search full-text index name for summaries (default: lcm_summaries_search)"
+    },
+    "vectorSearchIndexMessages": {
+      "label": "Vector Search Index (Messages)",
+      "help": "Atlas Vector Search index name for messages (default: lcm_messages_vector)"
+    },
+    "vectorSearchIndexSummaries": {
+      "label": "Vector Search Index (Summaries)",
+      "help": "Atlas Vector Search index name for summaries (default: lcm_summaries_vector)"
+    },
+    "autoCreateAtlasIndexes": {
+      "label": "Auto-Create Atlas Indexes",
+      "help": "When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only)"
+    },
     "summaryModel": {
       "label": "Summary Model",
       "help": "Model override for LCM summarization (e.g., 'gpt-5.4' or 'openai-resp/gpt-5.4')"
@@ -60,6 +92,31 @@
       },
       "dbPath": {
         "type": "string"
+      },
+      "storageBackend": {
+        "type": "string",
+        "enum": ["sqlite", "mongodb"]
+      },
+      "mongodbUri": {
+        "type": "string"
+      },
+      "mongodbDatabase": {
+        "type": "string"
+      },
+      "searchIndexMessages": {
+        "type": "string"
+      },
+      "searchIndexSummaries": {
+        "type": "string"
+      },
+      "vectorSearchIndexMessages": {
+        "type": "string"
+      },
+      "vectorSearchIndexSummaries": {
+        "type": "string"
+      },
+      "autoCreateAtlasIndexes": {
+        "type": "boolean"
       },
       "largeFileThresholdTokens": {
         "type": "integer",

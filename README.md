@@ -9,6 +9,7 @@ Lossless Context Management plugin for [OpenClaw](https://github.com/openclaw/op
 - [Configuration](#configuration)
 - [Documentation](#documentation)
 - [Development](#development)
+- [Vector and hybrid search: before vs after](#vector-and-hybrid-search-before-vs-after)
 - [License](#license)
 
 ## What it does
@@ -102,6 +103,47 @@ Add a `lossless-claw` entry under `plugins.entries` in your OpenClaw config:
 }
 ```
 
+**MongoDB Atlas and Vector Search:** To use MongoDB instead of SQLite and enable semantic/hybrid search, add these keys under `config`:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "lossless-claw": {
+        "enabled": true,
+        "config": {
+          "storageBackend": "mongodb",
+          "mongodbUri": "mongodb+srv://user:pass@cluster.mongodb.net/",
+          "mongodbDatabase": "lcm",
+          "searchIndexMessages": "lcm_messages_search",
+          "searchIndexSummaries": "lcm_summaries_search",
+          "vectorSearchIndexMessages": "lcm_messages_vector",
+          "vectorSearchIndexSummaries": "lcm_summaries_vector",
+          "autoCreateAtlasIndexes": true,
+          "freshTailCount": 32,
+          "contextThreshold": 0.75
+        }
+      }
+    }
+  }
+}
+```
+
+Set `autoCreateAtlasIndexes: true` to have Atlas Search and Vector Search indexes created automatically on first connection (M10+ cluster required).
+
+| Config key | Description |
+|------------|-------------|
+| `storageBackend` | `"sqlite"` (default) or `"mongodb"` |
+| `mongodbUri` | MongoDB connection URI (required when using MongoDB) |
+| `mongodbDatabase` | Database name (default: `"lcm"`) |
+| `searchIndexMessages` | Atlas Search (full-text) index for messages (default: `"lcm_messages_search"`) |
+| `searchIndexSummaries` | Atlas Search (full-text) index for summaries (default: `"lcm_summaries_search"`) |
+| `vectorSearchIndexMessages` | Atlas Vector Search index for messages (default: `"lcm_messages_vector"`) |
+| `vectorSearchIndexSummaries` | Atlas Vector Search index for summaries (default: `"lcm_summaries_vector"`) |
+| `autoCreateAtlasIndexes` | When `true`, create Atlas Search and Vector Search indexes if not present (default: `false`) |
+
+Environment variables take precedence over plugin config, so you can override any of these with `LCM_*` env vars.
+
 ### Environment variables
 
 | Variable | Default | Description |
@@ -125,6 +167,23 @@ Add a `lossless-claw` entry under `plugins.entries` in your OpenClaw config:
 | `LCM_SUMMARY_PROVIDER` | *(from OpenClaw)* | Provider override for summarization |
 | `LCM_AUTOCOMPACT_DISABLED` | `false` | Disable automatic compaction after turns |
 | `LCM_PRUNE_HEARTBEAT_OK` | `false` | Retroactively delete `HEARTBEAT_OK` turn cycles from LCM storage |
+
+### MongoDB Atlas and Vector Search (optional)
+
+When using MongoDB Atlas as the storage backend, the following variables enable semantic and hybrid search via Voyage AI auto-embedding:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `LCM_STORAGE_BACKEND` | `sqlite` | Storage backend: `sqlite` or `mongodb` |
+| `LCM_MONGODB_URI` | — | MongoDB connection URI (required when `storageBackend` is `mongodb`) |
+| `LCM_MONGODB_DATABASE` | `lcm` | MongoDB database name |
+| `LCM_SEARCH_INDEX_MESSAGES` | `lcm_messages_search` | Atlas Search (full-text) index name for the `messages` collection |
+| `LCM_SEARCH_INDEX_SUMMARIES` | `lcm_summaries_search` | Atlas Search (full-text) index name for the `summaries` collection |
+| `LCM_VECTOR_SEARCH_INDEX_MESSAGES` | `lcm_messages_vector` | Atlas Vector Search index name for the `messages` collection |
+| `LCM_VECTOR_SEARCH_INDEX_SUMMARIES` | `lcm_summaries_vector` | Atlas Vector Search index name for the `summaries` collection |
+| `LCM_AUTO_CREATE_ATLAS_INDEXES` | `false` | When `true`, create Atlas Search and Vector Search indexes if not present |
+
+**Prerequisites for vector/hybrid search:** Create Atlas Vector Search indexes with `autoEmbed` on the `content` field (see [planning-atlas.md](planning-atlas.md)). Voyage API keys are configured in Atlas, not in LCM. Alternatively, set `autoCreateAtlasIndexes: true` in plugin config to have indexes created automatically on first connection.
 
 ### Recommended starting configuration
 
@@ -247,6 +306,40 @@ tui/                        # Interactive terminal UI (Go)
   prompts/                  # Depth-aware prompt templates
 .goreleaser.yml             # GoReleaser config for TUI binary releases
 ```
+
+## Vector and hybrid search: before vs after
+
+When using **SQLite** (the default), search is keyword-based: `lcm_grep` matches exact terms or regex patterns. When you enable **MongoDB Atlas** with Vector Search indexes and Voyage AI auto-embedding, you gain semantic and hybrid search modes.
+
+### Before (keyword-only)
+
+| Capability | Behavior |
+|------------|----------|
+| Find by exact words | Yes — FTS5, LIKE, or regex |
+| Find by meaning/intent | No — only literal matches |
+| Answer questions over history | Limited — requires keyword overlap |
+| "Similar to this" search | No |
+
+Example: Searching for `"authentication"` will not find messages about "login flow" or "user credentials" unless those exact words appear.
+
+### After (vector + hybrid enabled)
+
+| Capability | Behavior |
+|------------|----------|
+| Find by exact words | Yes — unchanged |
+| Find by meaning/intent | Yes — semantic search finds conceptually related content |
+| Answer questions over history | Yes — `lcm_expand_query` can retrieve by meaning |
+| "Similar to this" search | Yes — vector similarity |
+
+Example: Searching for `"how do we handle errors"` can find summaries about "exception handling", "try/catch", or "debugging failures" even when those exact phrases are absent.
+
+**Search modes when Atlas is enabled:**
+
+- `mode: "full_text"` — Keyword search (unchanged)
+- `mode: "semantic"` — Vector-only search by meaning
+- `mode: "hybrid"` — Keyword + vector, merged with Reciprocal Rank Fusion for best of both
+
+On SQLite, `hybrid` and `semantic` fall back to keyword search, so existing workflows remain compatible.
 
 ## License
 

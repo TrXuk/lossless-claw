@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { Db } from "mongodb";
 import type { LcmConfig } from "../db/config.js";
+import { ensureAtlasIndexes } from "../db/atlas-indexes.js";
 import { getLcmConnection } from "../db/connection.js";
 import { getLcmDbFeatures } from "../db/features.js";
 import { getMongoDb } from "../db/mongodb-connection.js";
@@ -38,14 +39,31 @@ export async function createStores(
       );
     }
     const { db } = await getMongoDb(config.mongodbUri, config.mongodbDatabase);
+    if (config.autoCreateAtlasIndexes) {
+      await ensureAtlasIndexes(db, {
+        searchIndexMessages: config.searchIndexMessages,
+        searchIndexSummaries: config.searchIndexSummaries,
+        vectorSearchIndexMessages: config.vectorSearchIndexMessages,
+        vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
+      }).catch((err) => {
+        console.warn(
+          "[lossless-claw] autoCreateAtlasIndexes: failed to ensure indexes:",
+          err instanceof Error ? err.message : String(err),
+        );
+      });
+    }
     return {
       conversationStore: new ConversationStoreMongoDB(db, {
         fts5Available,
+        searchIndexMessages: config.searchIndexMessages,
+        searchIndexSummaries: config.searchIndexSummaries,
         vectorSearchIndexMessages: config.vectorSearchIndexMessages,
         vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
       }),
       summaryStore: new SummaryStoreMongoDB(db, {
         fts5Available,
+        searchIndexMessages: config.searchIndexMessages,
+        searchIndexSummaries: config.searchIndexSummaries,
         vectorSearchIndexMessages: config.vectorSearchIndexMessages,
         vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
       }),

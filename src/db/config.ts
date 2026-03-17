@@ -12,10 +12,16 @@ export type LcmConfig = {
   mongodbUri: string;
   /** MongoDB database name (used when storageBackend is mongodb) */
   mongodbDatabase: string;
+  /** Atlas Search (full-text) index name for messages (used when storageBackend is mongodb and mode is full_text/hybrid) */
+  searchIndexMessages: string;
+  /** Atlas Search (full-text) index name for summaries (used when storageBackend is mongodb and mode is full_text/hybrid) */
+  searchIndexSummaries: string;
   /** Atlas Vector Search index name for messages (used when storageBackend is mongodb and mode is hybrid/semantic) */
   vectorSearchIndexMessages: string;
   /** Atlas Vector Search index name for summaries (used when storageBackend is mongodb and mode is hybrid/semantic) */
   vectorSearchIndexSummaries: string;
+  /** When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only) */
+  autoCreateAtlasIndexes: boolean;
   contextThreshold: number;
   freshTailCount: number;
   leafMinFanout: number;
@@ -97,6 +103,16 @@ export function resolveLcmConfig(
       env.LCM_MONGODB_URI ?? toStr(pc.mongodbUri) ?? toStr(pc.mongodb_uri) ?? "",
     mongodbDatabase:
       env.LCM_MONGODB_DATABASE ?? toStr(pc.mongodbDatabase) ?? toStr(pc.mongodb_database) ?? "lcm",
+    searchIndexMessages:
+      env.LCM_SEARCH_INDEX_MESSAGES
+      ?? toStr(pc.searchIndexMessages)
+      ?? toStr(pc.search_index_messages)
+      ?? "lcm_messages_search",
+    searchIndexSummaries:
+      env.LCM_SEARCH_INDEX_SUMMARIES
+      ?? toStr(pc.searchIndexSummaries)
+      ?? toStr(pc.search_index_summaries)
+      ?? "lcm_summaries_search",
     vectorSearchIndexMessages:
       env.LCM_VECTOR_SEARCH_INDEX_MESSAGES
       ?? toStr(pc.vectorSearchIndexMessages)
@@ -107,6 +123,10 @@ export function resolveLcmConfig(
       ?? toStr(pc.vectorSearchIndexSummaries)
       ?? toStr(pc.vector_search_index_summaries)
       ?? "lcm_summaries_vector",
+    autoCreateAtlasIndexes:
+      env.LCM_AUTO_CREATE_ATLAS_INDEXES !== undefined
+        ? env.LCM_AUTO_CREATE_ATLAS_INDEXES === "true"
+        : toBool(pc.autoCreateAtlasIndexes) ?? false,
     contextThreshold:
       (env.LCM_CONTEXT_THRESHOLD !== undefined ? parseFloat(env.LCM_CONTEXT_THRESHOLD) : undefined)
         ?? toNumber(pc.contextThreshold) ?? 0.75,
