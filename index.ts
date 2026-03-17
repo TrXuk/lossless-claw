@@ -7,7 +7,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import { getLcmConnection } from "./src/db/connection.js";
 import { resolveLcmConfig } from "./src/db/config.js";
+import { getLcmDbFeatures } from "./src/db/features.js";
+import { buildLcmStatusMessage } from "./src/status.js";
 import { LcmContextEngine } from "./src/engine.js";
 import { createLcmDescribeTool } from "./src/tools/lcm-describe-tool.js";
 import { createLcmExpandQueryTool } from "./src/tools/lcm-expand-query-tool.js";
@@ -1324,9 +1327,16 @@ const lcmPlugin = {
       { name: "lcm_expand_query" },
     );
 
-    api.logger.info(
-      `[lcm] Plugin loaded (enabled=${deps.config.enabled}, db=${deps.config.databasePath}, threshold=${deps.config.contextThreshold})`,
-    );
+    const fts5Available =
+      deps.config.storageBackend === "sqlite"
+        ? getLcmDbFeatures(getLcmConnection(deps.config.databasePath)).fts5Available
+        : true;
+    const status = buildLcmStatusMessage({
+      config: deps.config,
+      backend: deps.config.storageBackend,
+      fts5Available,
+    });
+    api.logger.info(status);
   },
 };
 

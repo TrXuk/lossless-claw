@@ -138,9 +138,12 @@ describe("lcm plugin registration", () => {
       databasePath: dbPath,
       largeFileTokenThreshold: 12345,
     });
-    expect(infoLog).toHaveBeenCalledWith(
-      `[lcm] Plugin loaded (enabled=true, db=${dbPath}, threshold=0.33)`,
-    );
+    expect(infoLog).toHaveBeenCalled();
+    const logged = infoLog.mock.calls.flat().join(" ");
+    expect(logged).toContain("enabled=true");
+    expect(logged).toContain(`db=${dbPath}`);
+    expect(logged).toContain("threshold=0.33");
+    expect(logged).toContain("backend=sqlite");
   });
 
   it("inherits OpenClaw's default model for summarization when no LCM model override is set", () => {
