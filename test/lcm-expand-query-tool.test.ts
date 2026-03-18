@@ -376,6 +376,7 @@ describe("createLcmExpandQueryTool", () => {
           createdAt: new Date("2026-01-01T00:01:00.000Z"),
         },
       ],
+      auditEvents: [],
       totalMatches: 2,
     });
 

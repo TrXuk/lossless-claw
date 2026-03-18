@@ -1,3 +1,6 @@
+export type { AuditEventStore, AuditSearchResult, CreateAuditEventInput } from "./audit-store.js";
+export { AuditStoreSqlite } from "./audit-store.js";
+
 export { ConversationStore } from "./conversation-store.js";
 export type {
   ConversationId,

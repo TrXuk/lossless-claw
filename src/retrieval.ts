@@ -1,3 +1,4 @@
+import type { AuditSearchResult } from "./store/audit-store.js";
 import type {
   ConversationStore,
   MessageRecord,
@@ -65,8 +66,10 @@ import type { SearchMode } from "./store/conversation-store.js";
 export interface GrepInput {
   query: string;
   mode: SearchMode;
-  scope: "messages" | "summaries" | "both";
+  scope: "messages" | "summaries" | "audit" | "both";
   conversationId?: number;
+  sessionId?: string;
+  tool?: string;
   since?: Date;
   before?: Date;
   limit?: number;
@@ -75,6 +78,7 @@ export interface GrepInput {
 export interface GrepResult {
   messages: MessageSearchResult[];
   summaries: SummarySearchResult[];
+  auditEvents: AuditSearchResult[];
   totalMatches: number;
 }
 
@@ -122,6 +126,7 @@ export class RetrievalEngine {
   constructor(
     private conversationStore: ConversationStore,
     private summaryStore: SummaryStore,
+    private auditStore?: import("./store/audit-store.js").AuditEventStore,
   ) {}
 
   // ── describe ─────────────────────────────────────────────────────────────
@@ -221,17 +226,32 @@ export class RetrievalEngine {
   /**
    * Search compacted history using regex or full-text search.
    *
-   * Depending on `scope`, searches messages, summaries, or both (in parallel).
+   * Depending on `scope`, searches messages, summaries, audit events, or both (messages+summaries).
    */
   async grep(input: GrepInput): Promise<GrepResult> {
-    const { query, mode, scope, conversationId, since, before, limit } = input;
+    const { query, mode, scope, conversationId, sessionId, tool, since, before, limit } = input;
 
     const searchInput = { query, mode, conversationId, since, before, limit };
 
     let messages: MessageSearchResult[] = [];
     let summaries: SummarySearchResult[] = [];
+    let auditEvents: AuditSearchResult[] = [];
 
-    if (scope === "messages") {
+    if (scope === "audit") {
+      if (this.auditStore) {
+        const auditMode = mode === "regex" || mode === "full_text" ? mode : "regex";
+        auditEvents = await this.auditStore.searchEvents({
+          query,
+          mode: auditMode,
+          conversationId,
+          sessionId,
+          tool,
+          since,
+          before,
+          limit,
+        });
+      }
+    } else if (scope === "messages") {
       messages = await this.conversationStore.searchMessages(searchInput);
     } else if (scope === "summaries") {
       summaries = await this.summaryStore.searchSummaries(searchInput);
@@ -249,7 +269,8 @@ export class RetrievalEngine {
     return {
       messages,
       summaries,
-      totalMatches: messages.length + summaries.length,
+      auditEvents,
+      totalMatches: messages.length + summaries.length + auditEvents.length,
     };
   }
 

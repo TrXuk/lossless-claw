@@ -173,6 +173,7 @@ describe("createLcmExpandTool expansion limits", () => {
     mockRetrieval.grep.mockResolvedValue({
       messages: [],
       summaries: [{ summaryId: "sum_match", conversationId: 7, kind: "leaf", snippet: "match" }],
+      auditEvents: [],
       totalMatches: 1,
     });
     mockRetrieval.expand.mockResolvedValue({
@@ -394,6 +395,7 @@ describe("createLcmExpandTool expansion limits", () => {
     mockRetrieval.grep.mockResolvedValue({
       messages: [],
       summaries: [],
+      auditEvents: [],
       totalMatches: 0,
     });
 
@@ -438,6 +440,7 @@ describe("createLcmExpandTool expansion limits", () => {
         { summaryId: "sum_5", conversationId: 7, kind: "leaf", snippet: "5" },
         { summaryId: "sum_6", conversationId: 7, kind: "leaf", snippet: "6" },
       ],
+      auditEvents: [],
       totalMatches: 6,
     });
     mockRetrieval.expand.mockResolvedValue({

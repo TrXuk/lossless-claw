@@ -9,10 +9,13 @@ import { getMongoDb } from "../db/mongodb-connection.js";
 import { createVoyageAtlasEmbeddingService } from "../embeddings/voyage-atlas.js";
 import { startEmbeddingChangeStream } from "../embeddings/embedding-change-stream.js";
 import type { EmbeddingChangeStreamHandle } from "../embeddings/embedding-change-stream.js";
+import type { AuditEventStore } from "./audit-store.js";
+import { AuditStoreSqlite } from "./audit-store.js";
 import type { ConversationStore } from "./conversation-store.js";
 import { ConversationStore as ConversationStoreSqlite } from "./conversation-store.js";
 import type { SummaryStore } from "./summary-store.js";
 import { SummaryStore as SummaryStoreSqlite } from "./summary-store.js";
+import { AuditStoreMongoDB } from "./mongodb/audit-store-mongodb.js";
 import { ConversationStoreMongoDB } from "./mongodb/conversation-store-mongodb.js";
 import { SummaryStoreMongoDB } from "./mongodb/summary-store-mongodb.js";
 
@@ -28,6 +31,8 @@ function isAutoEmbedUnsupportedError(err: unknown): boolean {
 export type CreateStoresResult = {
   conversationStore: ConversationStore;
   summaryStore: SummaryStore;
+  /** When episodicAuditEnabled: audit event store for tool call logging. */
+  auditStore?: AuditEventStore;
   /** For SQLite: the database handle. For MongoDB: undefined. */
   sqliteDb?: DatabaseSync;
   /** For MongoDB: the database. For SQLite: undefined. */
@@ -110,9 +115,14 @@ export async function createStores(
       vectorSearchSummariesOnly: config.vectorSearchSummariesOnly,
     };
 
+    const auditStore = config.episodicAuditEnabled
+      ? new AuditStoreMongoDB(db)
+      : undefined;
+
     return {
       conversationStore: new ConversationStoreMongoDB(db, storeOptions),
       summaryStore: new SummaryStoreMongoDB(db, storeOptions),
+      auditStore,
       mongoDb: db,
       embeddingChangeStream,
     };
@@ -120,9 +130,14 @@ export async function createStores(
 
   const db = getLcmConnection(config.databasePath);
   const effectiveFts5 = options?.fts5Available ?? getLcmDbFeatures(db).fts5Available;
+  const auditStore = config.episodicAuditEnabled
+    ? new AuditStoreSqlite(db)
+    : undefined;
+
   return {
     conversationStore: new ConversationStoreSqlite(db, { fts5Available: effectiveFts5 }),
     summaryStore: new SummaryStoreSqlite(db, { fts5Available: effectiveFts5 }),
+    auditStore,
     sqliteDb: db,
   };
 }

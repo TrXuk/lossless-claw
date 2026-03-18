@@ -30,7 +30,7 @@ Summaries are lossy by design. The "Expand for details about:" footer at the end
 
 ### lcm_grep
 
-Search across messages and/or summaries using regex, full-text, hybrid (keyword + semantic), or semantic-only search.
+Search across messages, summaries, and/or tool-call audit events using regex, full-text, hybrid (keyword + semantic), or semantic-only search.
 
 **Parameters:**
 
@@ -38,7 +38,8 @@ Search across messages and/or summaries using regex, full-text, hybrid (keyword 
 |-------|------|----------|---------|-------------|
 | `pattern` | string | ✅ | — | Search pattern |
 | `mode` | string | | `"regex"` | `"regex"`, `"full_text"`, `"hybrid"` (keyword + semantic, MongoDB only), or `"semantic"` (vector only, MongoDB only) |
-| `scope` | string | | `"both"` | `"messages"`, `"summaries"`, or `"both"` |
+| `scope` | string | | `"both"` | `"messages"`, `"summaries"`, `"audit"` (tool-call log; requires episodicAuditEnabled), or `"both"` |
+| `tool` | string | | — | Filter audit events by tool name (only when scope is `"audit"`) |
 | `conversationId` | number | | current | Specific conversation to search |
 | `allConversations` | boolean | | `false` | Search all conversations |
 | `since` | string | | — | ISO timestamp lower bound |
@@ -70,6 +71,10 @@ lcm_grep(pattern: "config\\.threshold.*0\\.[0-9]+", scope: "summaries")
 
 # Recent messages containing a specific term
 lcm_grep(pattern: "deployment", since: "2026-02-19T00:00:00Z", scope: "messages")
+
+# Search tool-call audit log (requires episodicAuditEnabled)
+lcm_grep(pattern: "git status", scope: "audit")
+lcm_grep(pattern: "error", scope: "audit", tool: "bash")
 ```
 
 ### lcm_describe
@@ -191,3 +196,46 @@ By default, tools operate on the current conversation. Use `allConversations: tr
 - `lcm_expand_query` spawns a sub-agent and takes ~30–120 seconds
 - The sub-agent has a 120-second timeout with cleanup guarantees
 - Token caps (`LCM_MAX_EXPAND_TOKENS`) prevent runaway expansion
+
+## Complete TOOLS.md example
+
+Place this in your agent workspace (e.g. `~/.openclaw/workspace/TOOLS.md` or `agents/<agent-id>/agent/TOOLS.md`) to give the agent full LCM recall guidance:
+
+```markdown
+# Notes for Skills
+
+## LCM (Lossless Context Management)
+
+Use LCM tools for recall from compacted conversation history. Escalate as needed:
+
+1. **lcm_grep** — Search by keyword, regex, full-text, or semantic (MongoDB). Start here.
+2. **lcm_describe** — Inspect a specific summary's full content. Cheap, no sub-agent.
+3. **lcm_expand_query** — Deep recall: spawn a sub-agent to expand the DAG and answer a focused question.
+
+### When to expand
+
+Summaries are lossy. Use `lcm_expand_query` when you need:
+
+- Exact commands, error messages, or config values
+- File paths and specific code changes
+- Decision rationale beyond what the summary captured
+- Tool call sequences and their outputs
+- Verbatim quotes or specific data points
+
+When summaries in context have an "Expand for details about:" footer listing something you need, use `lcm_expand_query` to get the full detail. Don't guess or assert from summaries alone.
+
+### Search modes and scopes (lcm_grep)
+
+- `mode: "regex"` — Pattern match (default)
+- `mode: "full_text"` — Atlas Search / FTS (MongoDB/SQLite)
+- `mode: "hybrid"` — Keyword + semantic (MongoDB only)
+- `mode: "semantic"` — Vector-only (MongoDB only)
+- `scope: "audit"` — Search the tool-call audit log (requires `episodicAuditEnabled`). Use `tool` to filter by tool name.
+
+Use `allConversations: true` to search across all conversations. Use `conversationId` to target a specific conversation from prior grep results.
+
+### Performance
+
+- `lcm_grep` and `lcm_describe` are fast.
+- `lcm_expand_query` takes ~30–120 seconds; use it when the snippet or full summary isn't enough.
+```

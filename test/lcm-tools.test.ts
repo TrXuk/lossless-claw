@@ -114,6 +114,7 @@ describe("LCM tools session scoping", () => {
             createdAt: new Date("2026-01-02T00:00:00.000Z"),
           },
         ],
+        auditEvents: [],
         totalMatches: 1,
       })),
       expand: vi.fn(async () => ({
@@ -164,6 +165,7 @@ describe("LCM tools session scoping", () => {
           },
         ],
         summaries: [],
+        auditEvents: [],
         totalMatches: 1,
       })),
       expand: vi.fn(),

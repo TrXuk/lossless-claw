@@ -802,6 +802,7 @@ describe("ExpansionOrchestrator", () => {
           createdAt: new Date("2026-01-02T00:00:00.000Z"),
         },
       ],
+      auditEvents: [],
       totalMatches: 2,
     });
     mockRetrieval.expand
@@ -834,6 +835,7 @@ describe("ExpansionOrchestrator", () => {
     mockRetrieval.grep.mockResolvedValue({
       messages: [],
       summaries: [],
+      auditEvents: [],
       totalMatches: 0,
     });
 
@@ -864,6 +866,7 @@ describe("ExpansionOrchestrator", () => {
           createdAt: new Date("2026-01-03T00:00:00.000Z"),
         },
       ],
+      auditEvents: [],
       totalMatches: 1,
     });
     mockRetrieval.expand.mockResolvedValue(makeExpandResult({ estimatedTokens: 10 }));
@@ -901,6 +904,7 @@ describe("ExpansionOrchestrator", () => {
           createdAt: new Date("2026-01-02T00:00:00.000Z"),
         },
       ],
+      auditEvents: [],
       totalMatches: 2,
     });
     mockRetrieval.expand.mockImplementation(async (input: { summaryId: string }) => {
@@ -929,6 +933,7 @@ describe("ExpansionOrchestrator", () => {
           createdAt: new Date("2026-01-01T00:00:00.000Z"),
         },
       ],
+      auditEvents: [],
       totalMatches: 1,
     });
     mockRetrieval.expand.mockResolvedValue(makeExpandResult({ estimatedTokens: 5 }));

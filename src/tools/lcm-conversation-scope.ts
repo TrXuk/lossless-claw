@@ -3,6 +3,7 @@ import type { LcmDependencies } from "../types.js";
 
 export type LcmConversationScope = {
   conversationId?: number;
+  sessionId?: string;
   allConversations: boolean;
 };
 
@@ -52,11 +53,15 @@ export async function resolveLcmConversationScope(input: {
       ? Math.trunc(params.conversationId)
       : undefined;
   if (explicitConversationId != null) {
-    return { conversationId: explicitConversationId, allConversations: false };
+    return {
+      conversationId: explicitConversationId,
+      sessionId: input.sessionId?.trim(),
+      allConversations: false,
+    };
   }
 
   if (params.allConversations === true) {
-    return { conversationId: undefined, allConversations: true };
+    return { conversationId: undefined, sessionId: undefined, allConversations: true };
   }
 
   let normalizedSessionId = input.sessionId?.trim();
@@ -64,14 +69,18 @@ export async function resolveLcmConversationScope(input: {
     normalizedSessionId = await input.deps.resolveSessionIdFromSessionKey(input.sessionKey.trim());
   }
   if (!normalizedSessionId) {
-    return { conversationId: undefined, allConversations: false };
+    return { conversationId: undefined, sessionId: undefined, allConversations: false };
   }
 
   await lcm.whenReady();
   const conversation = await lcm.getConversationStore().getConversationBySessionId(normalizedSessionId);
   if (!conversation) {
-    return { conversationId: undefined, allConversations: false };
+    return { conversationId: undefined, sessionId: normalizedSessionId, allConversations: false };
   }
 
-  return { conversationId: conversation.conversationId, allConversations: false };
+  return {
+    conversationId: conversation.conversationId,
+    sessionId: normalizedSessionId,
+    allConversations: false,
+  };
 }

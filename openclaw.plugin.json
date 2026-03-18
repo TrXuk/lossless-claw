@@ -61,6 +61,10 @@
       "label": "Voyage Embedding Model",
       "help": "Model for manual embeddings (default: voyage-3-large)"
     },
+    "episodicAuditEnabled": {
+      "label": "Episodic Audit Enabled",
+      "help": "When true, log tool calls to audit_events for episodic/audit memory (queryable via lcm_grep scope: audit)"
+    },
     "summaryModel": {
       "label": "Summary Model",
       "help": "Model override for LCM summarization (e.g., 'gpt-5.4' or 'openai-resp/gpt-5.4')"
@@ -138,6 +142,9 @@
       },
       "voyageEmbeddingModel": {
         "type": "string"
+      },
+      "episodicAuditEnabled": {
+        "type": "boolean"
       },
       "largeFileThresholdTokens": {
         "type": "integer",

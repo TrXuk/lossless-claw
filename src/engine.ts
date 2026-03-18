@@ -32,7 +32,9 @@ import {
   generateExplorationSummary,
   parseFileBlocks,
 } from "./large-files.js";
+import { extractToolEventsFromMessages } from "./audit/extract-tool-events.js";
 import { RetrievalEngine } from "./retrieval.js";
+import type { AuditEventStore } from "./store/audit-store.js";
 import type {
   ConversationStore,
   CreateMessagePartInput,
@@ -589,6 +591,7 @@ export class LcmContextEngine implements ContextEngine {
 
   private conversationStore!: ConversationStore;
   private summaryStore!: SummaryStore;
+  private auditStore?: AuditEventStore;
   private assembler!: ContextAssembler;
   private compaction!: CompactionEngine;
   private retrieval!: RetrievalEngine;
@@ -610,9 +613,10 @@ export class LcmContextEngine implements ContextEngine {
         : true;
 
     this._ready = this.initializeStores()
-      .then(({ conversationStore, summaryStore }) => {
+      .then(({ conversationStore, summaryStore, auditStore }) => {
         this.conversationStore = conversationStore;
         this.summaryStore = summaryStore;
+        this.auditStore = auditStore;
         if (!this.fts5Available) {
           this.deps.log.warn(
             "[lcm] FTS5 unavailable in the current Node runtime; full_text search will fall back to LIKE and indexing is disabled",
@@ -641,18 +645,20 @@ export class LcmContextEngine implements ContextEngine {
           summaryStore,
           compactionConfig,
         );
-        this.retrieval = new RetrievalEngine(conversationStore, summaryStore);
+        this.retrieval = new RetrievalEngine(conversationStore, summaryStore, auditStore);
       });
   }
 
   private async initializeStores(): Promise<{
     conversationStore: ConversationStore;
     summaryStore: SummaryStore;
+    auditStore?: AuditEventStore;
   }> {
     const result = await createStores(this.config, { fts5Available: this.fts5Available });
     return {
       conversationStore: result.conversationStore,
       summaryStore: result.summaryStore,
+      auditStore: result.auditStore,
     };
   }
 
@@ -1276,6 +1282,34 @@ export class LcmContextEngine implements ContextEngine {
       });
     } catch {
       // Continue with proactive compaction even if ingest fails.
+    }
+
+    if (this.auditStore && this.config.episodicAuditEnabled && !params.isHeartbeat) {
+      try {
+        const conversation = await this.conversationStore.getConversationBySessionId(
+          params.sessionId,
+        );
+        if (conversation) {
+          const events = extractToolEventsFromMessages(newMessages);
+          for (const ev of events) {
+            await this.auditStore.insertEvent({
+              sessionId: params.sessionId,
+              conversationId: conversation.conversationId,
+              type: "tool_call",
+              tool: ev.tool,
+              input: ev.input,
+              output: ev.output,
+              toolCallId: ev.toolCallId,
+              isError: ev.isError,
+            });
+          }
+        }
+      } catch (err) {
+        this.deps.log.warn(
+          "[lossless-claw] Episodic audit: failed to log tool events:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
     }
 
     const tokenBudget =

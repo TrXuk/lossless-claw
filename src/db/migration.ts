@@ -473,6 +473,19 @@ export function runLcmMigrations(
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS audit_events (
+      event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id TEXT NOT NULL,
+      conversation_id INTEGER NOT NULL REFERENCES conversations(conversation_id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'tool_call',
+      tool TEXT NOT NULL,
+      input TEXT,
+      output TEXT,
+      tool_call_id TEXT,
+      is_error INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     -- Indexes
     CREATE INDEX IF NOT EXISTS messages_conv_seq_idx ON messages (conversation_id, seq);
     CREATE INDEX IF NOT EXISTS summaries_conv_created_idx ON summaries (conversation_id, created_at);
@@ -480,6 +493,10 @@ export function runLcmMigrations(
     CREATE INDEX IF NOT EXISTS message_parts_type_idx ON message_parts (part_type);
     CREATE INDEX IF NOT EXISTS context_items_conv_idx ON context_items (conversation_id, ordinal);
     CREATE INDEX IF NOT EXISTS large_files_conv_idx ON large_files (conversation_id, created_at);
+    CREATE INDEX IF NOT EXISTS audit_events_session_idx ON audit_events (session_id);
+    CREATE INDEX IF NOT EXISTS audit_events_conversation_idx ON audit_events (conversation_id);
+    CREATE INDEX IF NOT EXISTS audit_events_tool_idx ON audit_events (tool);
+    CREATE INDEX IF NOT EXISTS audit_events_created_at_idx ON audit_events (created_at);
   `);
 
   // Forward-compatible conversations migration for existing DBs.

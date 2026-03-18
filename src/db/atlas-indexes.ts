@@ -11,6 +11,7 @@ const LCM_COLLECTIONS = [
   "summary_parents",
   "context_items",
   "large_files",
+  "audit_events",
 ] as const;
 
 /**

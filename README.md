@@ -146,6 +146,7 @@ Set `autoCreateAtlasIndexes: true` to have Atlas Search and Vector Search indexe
 | `vectorSearchSummariesOnly` | When `true`, only create and use vector indexes for summaries; no messages vector index or embedding (default: `false`) |
 | `voyageApiKey` | Atlas Model API key for manual embeddings when auto-embedding is not supported. See [Model API Keys](https://www.mongodb.com/docs/voyageai/management/api-keys/). |
 | `voyageEmbeddingModel` | Model for manual embeddings (default: `voyage-3-large`) |
+| `episodicAuditEnabled` | When `true`, log tool calls to `audit_events` for episodic/audit memory; queryable via `lcm_grep` with `scope: "audit"` (default: `false`) |
 
 Environment variables take precedence over plugin config, so you can override any of these with `LCM_*` env vars.
 
@@ -172,6 +173,7 @@ Environment variables take precedence over plugin config, so you can override an
 | `LCM_SUMMARY_PROVIDER` | *(from OpenClaw)* | Provider override for summarization |
 | `LCM_AUTOCOMPACT_DISABLED` | `false` | Disable automatic compaction after turns |
 | `LCM_PRUNE_HEARTBEAT_OK` | `false` | Retroactively delete `HEARTBEAT_OK` turn cycles from LCM storage |
+| `LCM_EPISODIC_AUDIT_ENABLED` | `false` | When `true`, log tool calls to `audit_events`; query via `lcm_grep` with `scope: "audit"` |
 
 ### MongoDB Atlas and Vector Search (optional)
 
@@ -196,6 +198,8 @@ When using MongoDB Atlas as the storage backend, the following variables enable 
 **Manual embedding fallback:** If auto-embedding is not supported in your Atlas project (e.g. "AutoEmbedding feature ... is not supported"), set `voyageApiKey` (or `LCM_VOYAGE_API_KEY`) with an [Atlas Model API key](https://www.mongodb.com/docs/voyageai/management/api-keys/). The plugin will use the Atlas Embedding API instead, store embeddings in a `content_embedding` field, and a Change Stream will process new or changed documents. Requires MongoDB replica set for Change Streams.
 
 **Summaries-only vector search:** Set `vectorSearchSummariesOnly: true` (or `LCM_VECTOR_SEARCH_SUMMARIES_ONLY=true`) to only create and use vector indexes for summaries. The messages vector index is skipped, messages are not embedded, and message search uses keyword/Atlas Search only. Useful when you want semantic search over summaries but not over raw messages.
+
+**Episodic/audit memory:** Set `episodicAuditEnabled: true` (or `LCM_EPISODIC_AUDIT_ENABLED=true`) to log every tool call to an `audit_events` table/collection. Query the audit log with `lcm_grep(pattern: "...", scope: "audit")` for debugging agent behavior or replaying what happened.
 
 ### Recommended starting configuration
 
