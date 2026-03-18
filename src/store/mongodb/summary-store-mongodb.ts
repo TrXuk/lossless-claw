@@ -1,4 +1,5 @@
 import type { Collection, Db } from "mongodb";
+import type { VoyageAtlasEmbeddingService } from "../../embeddings/voyage-atlas.js";
 import { buildLikeSearchPlan, createFallbackSnippet } from "../full-text-fallback.js";
 import { mergeWithRRF } from "./search-utils.js";
 import type {
@@ -57,6 +58,8 @@ export class SummaryStoreMongoDB {
   private readonly fts5Available: boolean;
   private readonly searchIndexSummaries: string;
   private readonly vectorSearchIndexSummaries: string;
+  private readonly embeddingService?: VoyageAtlasEmbeddingService;
+  private readonly embeddingMode: "auto" | "manual";
 
   constructor(
     db: Db,
@@ -66,6 +69,8 @@ export class SummaryStoreMongoDB {
       searchIndexSummaries?: string;
       vectorSearchIndexMessages?: string;
       vectorSearchIndexSummaries?: string;
+      embeddingService?: VoyageAtlasEmbeddingService;
+      embeddingMode?: "auto" | "manual";
     },
   ) {
     this.summaries = db.collection("summaries");
@@ -77,6 +82,8 @@ export class SummaryStoreMongoDB {
     this.fts5Available = options?.fts5Available ?? true;
     this.searchIndexSummaries = options?.searchIndexSummaries ?? "lcm_summaries_search";
     this.vectorSearchIndexSummaries = options?.vectorSearchIndexSummaries ?? "lcm_summaries_vector";
+    this.embeddingService = options?.embeddingService;
+    this.embeddingMode = options?.embeddingMode ?? "auto";
   }
 
   async insertSummary(input: CreateSummaryInput): Promise<SummaryRecord> {
@@ -90,7 +97,7 @@ export class SummaryStoreMongoDB {
     const descendantTokenCount = Math.max(0, Math.floor(input.descendantTokenCount ?? 0));
     const sourceMessageTokenCount = Math.max(0, Math.floor(input.sourceMessageTokenCount ?? 0));
     const now = new Date();
-    const doc = {
+    const doc: Record<string, unknown> = {
       summaryId: input.summaryId,
       conversationId: input.conversationId,
       kind: input.kind,
@@ -105,6 +112,13 @@ export class SummaryStoreMongoDB {
       sourceMessageTokenCount,
       createdAt: now,
     };
+    if (this.embeddingService && input.content?.trim()) {
+      try {
+        doc.content_embedding = await this.embeddingService.embedText(input.content);
+      } catch (err) {
+        console.warn("[lossless-claw] Failed to embed summary, inserting without embedding:", err);
+      }
+    }
     await this.summaries.insertOne(doc);
     return toSummaryRecord(doc);
   }
@@ -512,16 +526,32 @@ export class SummaryStoreMongoDB {
       if (input.before) (filter.createdAt as Record<string, Date>).$lt = input.before;
     }
 
+    let vectorSearchClause: Record<string, unknown>;
+    if (this.embeddingMode === "manual" && this.embeddingService) {
+      const queryVector = await this.embeddingService.embedText(input.query);
+      if (queryVector.length === 0) return [];
+      vectorSearchClause = {
+        index: this.vectorSearchIndexSummaries,
+        path: "content_embedding",
+        queryVector,
+        limit,
+        numCandidates: Math.min(limit * 20, 10000),
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+      };
+    } else {
+      vectorSearchClause = {
+        index: this.vectorSearchIndexSummaries,
+        path: "content",
+        query: { text: input.query },
+        limit,
+        numCandidates: Math.min(limit * 20, 10000),
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+      };
+    }
+
     const pipeline = [
       {
-        $vectorSearch: {
-          index: this.vectorSearchIndexSummaries,
-          path: "content",
-          query: { text: input.query },
-          limit,
-          numCandidates: Math.min(limit * 20, 10000),
-          ...(Object.keys(filter).length > 0 ? { filter } : {}),
-        },
+        $vectorSearch: vectorSearchClause,
       },
       {
         $project: {

@@ -49,6 +49,14 @@
       "label": "Auto-Create Atlas Indexes",
       "help": "When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only)"
     },
+    "voyageApiKey": {
+      "label": "Voyage API Key",
+      "help": "Atlas Model API key for manual embeddings when auto-embedding is not supported. See https://www.mongodb.com/docs/voyageai/management/api-keys/"
+    },
+    "voyageEmbeddingModel": {
+      "label": "Voyage Embedding Model",
+      "help": "Model for manual embeddings (default: voyage-3-large)"
+    },
     "summaryModel": {
       "label": "Summary Model",
       "help": "Model override for LCM summarization (e.g., 'gpt-5.4' or 'openai-resp/gpt-5.4')"
@@ -117,6 +125,12 @@
       },
       "autoCreateAtlasIndexes": {
         "type": "boolean"
+      },
+      "voyageApiKey": {
+        "type": "string"
+      },
+      "voyageEmbeddingModel": {
+        "type": "string"
       },
       "largeFileThresholdTokens": {
         "type": "integer",

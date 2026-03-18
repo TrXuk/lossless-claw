@@ -63,6 +63,17 @@ function vectorSearchDefinition() {
   };
 }
 
+/** Vector Search index for manual embeddings (content_embedding field) */
+function vectorSearchDefinitionManual(numDimensions: number) {
+  return {
+    fields: [
+      { type: "vector" as const, path: "content_embedding", numDimensions },
+      { type: "filter" as const, path: "conversationId" },
+      { type: "filter" as const, path: "createdAt" },
+    ],
+  };
+}
+
 async function indexExists(collection: Collection, name: string): Promise<boolean> {
   const cursor = collection.listSearchIndexes();
   const indexes = await cursor.toArray();
@@ -107,6 +118,28 @@ export async function ensureAtlasIndexes(
   const searchDef = atlasSearchDefinition();
   const vectorDef = vectorSearchDefinition();
 
+  await Promise.all([
+    ensureSearchIndex(messages, config.searchIndexMessages, searchDef),
+    ensureSearchIndex(summaries, config.searchIndexSummaries, searchDef),
+    ensureVectorSearchIndex(messages, config.vectorSearchIndexMessages, vectorDef),
+    ensureVectorSearchIndex(summaries, config.vectorSearchIndexSummaries, vectorDef),
+  ]);
+}
+
+/**
+ * Ensure manual Vector Search indexes (content_embedding) and Atlas Search (full-text) indexes
+ * exist on messages and summaries. Used when auto-embedding is not supported and voyageApiKey is set.
+ */
+export async function ensureManualVectorIndexes(
+  db: Db,
+  config: AtlasIndexConfig,
+  numDimensions: number,
+): Promise<void> {
+  await ensureLcmDatabase(db);
+  const messages = db.collection("messages");
+  const summaries = db.collection("summaries");
+  const searchDef = atlasSearchDefinition();
+  const vectorDef = vectorSearchDefinitionManual(numDimensions);
   await Promise.all([
     ensureSearchIndex(messages, config.searchIndexMessages, searchDef),
     ensureSearchIndex(summaries, config.searchIndexSummaries, searchDef),

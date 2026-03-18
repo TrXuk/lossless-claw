@@ -22,6 +22,10 @@ export type LcmConfig = {
   vectorSearchIndexSummaries: string;
   /** When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only) */
   autoCreateAtlasIndexes: boolean;
+  /** Atlas Model API key for manual embeddings when auto-embedding is not supported. See https://www.mongodb.com/docs/voyageai/management/api-keys/ */
+  voyageApiKey: string;
+  /** Voyage embedding model for manual embeddings (default: voyage-3-large) */
+  voyageEmbeddingModel: string;
   contextThreshold: number;
   freshTailCount: number;
   leafMinFanout: number;
@@ -127,6 +131,13 @@ export function resolveLcmConfig(
       env.LCM_AUTO_CREATE_ATLAS_INDEXES !== undefined
         ? env.LCM_AUTO_CREATE_ATLAS_INDEXES === "true"
         : toBool(pc.autoCreateAtlasIndexes) ?? false,
+    voyageApiKey:
+      env.LCM_VOYAGE_API_KEY?.trim() ?? toStr(pc.voyageApiKey) ?? toStr(pc.voyage_api_key) ?? "",
+    voyageEmbeddingModel:
+      env.LCM_VOYAGE_EMBEDDING_MODEL?.trim()
+      ?? toStr(pc.voyageEmbeddingModel)
+      ?? toStr(pc.voyage_embedding_model)
+      ?? "voyage-3-large",
     contextThreshold:
       (env.LCM_CONTEXT_THRESHOLD !== undefined ? parseFloat(env.LCM_CONTEXT_THRESHOLD) : undefined)
         ?? toNumber(pc.contextThreshold) ?? 0.75,

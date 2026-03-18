@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Collection, Db } from "mongodb";
+import type { VoyageAtlasEmbeddingService } from "../../embeddings/voyage-atlas.js";
 import { buildLikeSearchPlan, createFallbackSnippet } from "../full-text-fallback.js";
 import { mergeWithRRF } from "./search-utils.js";
 import type {
@@ -39,6 +40,8 @@ export class ConversationStoreMongoDB {
   private readonly fts5Available: boolean;
   private readonly searchIndexMessages: string;
   private readonly vectorSearchIndexMessages: string;
+  private readonly embeddingService?: VoyageAtlasEmbeddingService;
+  private readonly embeddingMode: "auto" | "manual";
 
   constructor(
     db: Db,
@@ -48,6 +51,8 @@ export class ConversationStoreMongoDB {
       searchIndexSummaries?: string;
       vectorSearchIndexMessages?: string;
       vectorSearchIndexSummaries?: string;
+      embeddingService?: VoyageAtlasEmbeddingService;
+      embeddingMode?: "auto" | "manual";
     },
   ) {
     this.conversations = db.collection("conversations");
@@ -59,6 +64,8 @@ export class ConversationStoreMongoDB {
     this.fts5Available = options?.fts5Available ?? true;
     this.searchIndexMessages = options?.searchIndexMessages ?? "lcm_messages_search";
     this.vectorSearchIndexMessages = options?.vectorSearchIndexMessages ?? "lcm_messages_vector";
+    this.embeddingService = options?.embeddingService;
+    this.embeddingMode = options?.embeddingMode ?? "auto";
   }
 
   async withTransaction<T>(operation: () => Promise<T> | T): Promise<T> {
@@ -129,7 +136,7 @@ export class ConversationStoreMongoDB {
   async createMessage(input: CreateMessageInput): Promise<MessageRecord> {
     const messageId = await getNextId(this.counters, "message_id");
     const now = new Date();
-    const doc = {
+    const doc: Record<string, unknown> = {
       messageId,
       conversationId: input.conversationId,
       seq: input.seq,
@@ -138,6 +145,13 @@ export class ConversationStoreMongoDB {
       tokenCount: input.tokenCount,
       createdAt: now,
     };
+    if (this.embeddingService && input.content?.trim()) {
+      try {
+        doc.content_embedding = await this.embeddingService.embedText(input.content);
+      } catch (err) {
+        console.warn("[lossless-claw] Failed to embed message, inserting without embedding:", err);
+      }
+    }
     await this.messages.insertOne(doc);
     return this.toMessageRecord(doc);
   }
@@ -417,16 +431,32 @@ export class ConversationStoreMongoDB {
       if (input.before) (filter.createdAt as Record<string, Date>).$lt = input.before;
     }
 
+    let vectorSearchClause: Record<string, unknown>;
+    if (this.embeddingMode === "manual" && this.embeddingService) {
+      const queryVector = await this.embeddingService.embedText(input.query);
+      if (queryVector.length === 0) return [];
+      vectorSearchClause = {
+        index: this.vectorSearchIndexMessages,
+        path: "content_embedding",
+        queryVector,
+        limit,
+        numCandidates: Math.min(limit * 20, 10000),
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+      };
+    } else {
+      vectorSearchClause = {
+        index: this.vectorSearchIndexMessages,
+        path: "content",
+        query: { text: input.query },
+        limit,
+        numCandidates: Math.min(limit * 20, 10000),
+        ...(Object.keys(filter).length > 0 ? { filter } : {}),
+      };
+    }
+
     const pipeline = [
       {
-        $vectorSearch: {
-          index: this.vectorSearchIndexMessages,
-          path: "content",
-          query: { text: input.query },
-          limit,
-          numCandidates: Math.min(limit * 20, 10000),
-          ...(Object.keys(filter).length > 0 ? { filter } : {}),
-        },
+        $vectorSearch: vectorSearchClause,
       },
       {
         $project: {
