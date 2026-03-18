@@ -42,6 +42,7 @@ export class ConversationStoreMongoDB {
   private readonly vectorSearchIndexMessages: string;
   private readonly embeddingService?: VoyageAtlasEmbeddingService;
   private readonly embeddingMode: "auto" | "manual";
+  private readonly vectorSearchSummariesOnly: boolean;
 
   constructor(
     db: Db,
@@ -53,6 +54,7 @@ export class ConversationStoreMongoDB {
       vectorSearchIndexSummaries?: string;
       embeddingService?: VoyageAtlasEmbeddingService;
       embeddingMode?: "auto" | "manual";
+      vectorSearchSummariesOnly?: boolean;
     },
   ) {
     this.conversations = db.collection("conversations");
@@ -66,6 +68,7 @@ export class ConversationStoreMongoDB {
     this.vectorSearchIndexMessages = options?.vectorSearchIndexMessages ?? "lcm_messages_vector";
     this.embeddingService = options?.embeddingService;
     this.embeddingMode = options?.embeddingMode ?? "auto";
+    this.vectorSearchSummariesOnly = options?.vectorSearchSummariesOnly ?? false;
   }
 
   async withTransaction<T>(operation: () => Promise<T> | T): Promise<T> {
@@ -145,7 +148,11 @@ export class ConversationStoreMongoDB {
       tokenCount: input.tokenCount,
       createdAt: now,
     };
-    if (this.embeddingService && input.content?.trim()) {
+    if (
+      this.embeddingService &&
+      !this.vectorSearchSummariesOnly &&
+      input.content?.trim()
+    ) {
       try {
         doc.content_embedding = await this.embeddingService.embedText(input.content);
       } catch (err) {
@@ -278,6 +285,10 @@ export class ConversationStoreMongoDB {
   async searchMessages(input: MessageSearchInput): Promise<MessageSearchResult[]> {
     const limit = input.limit ?? 50;
 
+    if (this.vectorSearchSummariesOnly) {
+      const keywordInput = { ...input, mode: "full_text" as const };
+      return this.searchKeywordOrAtlasMessages(keywordInput, limit);
+    }
     if (input.mode === "semantic") {
       return this.searchVectorMessages(input, limit);
     }

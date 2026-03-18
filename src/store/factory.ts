@@ -59,6 +59,7 @@ export async function createStores(
       searchIndexSummaries: config.searchIndexSummaries,
       vectorSearchIndexMessages: config.vectorSearchIndexMessages,
       vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
+      vectorSearchSummariesOnly: config.vectorSearchSummariesOnly,
     };
 
     let embeddingService: ReturnType<typeof createVoyageAtlasEmbeddingService> | undefined;
@@ -82,7 +83,7 @@ export async function createStores(
           try {
             embeddingChangeStream = startEmbeddingChangeStream(db, {
               embeddingService,
-              collections: ["messages", "summaries"],
+              collections: config.vectorSearchSummariesOnly ? ["summaries"] : ["messages", "summaries"],
             });
           } catch (streamErr) {
             console.warn(
@@ -106,6 +107,7 @@ export async function createStores(
       vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
       embeddingService,
       embeddingMode,
+      vectorSearchSummariesOnly: config.vectorSearchSummariesOnly,
     };
 
     return {

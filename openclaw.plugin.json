@@ -49,6 +49,10 @@
       "label": "Auto-Create Atlas Indexes",
       "help": "When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only)"
     },
+    "vectorSearchSummariesOnly": {
+      "label": "Vector Search Summaries Only",
+      "help": "When true, only create and use vector indexes for summaries (no messages vector index or embedding)"
+    },
     "voyageApiKey": {
       "label": "Voyage API Key",
       "help": "Atlas Model API key for manual embeddings when auto-embedding is not supported. See https://www.mongodb.com/docs/voyageai/management/api-keys/"
@@ -124,6 +128,9 @@
         "type": "string"
       },
       "autoCreateAtlasIndexes": {
+        "type": "boolean"
+      },
+      "vectorSearchSummariesOnly": {
         "type": "boolean"
       },
       "voyageApiKey": {

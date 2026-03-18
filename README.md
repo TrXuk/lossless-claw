@@ -120,6 +120,8 @@ Add a `lossless-claw` entry under `plugins.entries` in your OpenClaw config:
           "vectorSearchIndexMessages": "lcm_messages_vector",
           "vectorSearchIndexSummaries": "lcm_summaries_vector",
           "autoCreateAtlasIndexes": true,
+          "voyageApiKey": "<Atlas Model API key>",
+          "voyageEmbeddingModel": "voyage-3-large",
           "freshTailCount": 32,
           "contextThreshold": 0.75
         }
@@ -141,6 +143,9 @@ Set `autoCreateAtlasIndexes: true` to have Atlas Search and Vector Search indexe
 | `vectorSearchIndexMessages` | Atlas Vector Search index for messages (default: `"lcm_messages_vector"`) |
 | `vectorSearchIndexSummaries` | Atlas Vector Search index for summaries (default: `"lcm_summaries_vector"`) |
 | `autoCreateAtlasIndexes` | When `true`, create Atlas Search and Vector Search indexes if not present (default: `false`) |
+| `vectorSearchSummariesOnly` | When `true`, only create and use vector indexes for summaries; no messages vector index or embedding (default: `false`) |
+| `voyageApiKey` | Atlas Model API key for manual embeddings when auto-embedding is not supported. See [Model API Keys](https://www.mongodb.com/docs/voyageai/management/api-keys/). |
+| `voyageEmbeddingModel` | Model for manual embeddings (default: `voyage-3-large`) |
 
 Environment variables take precedence over plugin config, so you can override any of these with `LCM_*` env vars.
 
@@ -182,8 +187,15 @@ When using MongoDB Atlas as the storage backend, the following variables enable 
 | `LCM_VECTOR_SEARCH_INDEX_MESSAGES` | `lcm_messages_vector` | Atlas Vector Search index name for the `messages` collection |
 | `LCM_VECTOR_SEARCH_INDEX_SUMMARIES` | `lcm_summaries_vector` | Atlas Vector Search index name for the `summaries` collection |
 | `LCM_AUTO_CREATE_ATLAS_INDEXES` | `false` | When `true`, create Atlas Search and Vector Search indexes if not present |
+| `LCM_VECTOR_SEARCH_SUMMARIES_ONLY` | `false` | When `true`, only create and use vector indexes for summaries; no messages vector index or embedding |
+| `LCM_VOYAGE_API_KEY` | — | Atlas Model API key for manual embeddings when auto-embedding is not supported. See [Model API Keys](https://www.mongodb.com/docs/voyageai/management/api-keys/). |
+| `LCM_VOYAGE_EMBEDDING_MODEL` | `voyage-3-large` | Model for manual embeddings |
 
 **Prerequisites for vector/hybrid search:** Create Atlas Vector Search indexes with `autoEmbed` on the `content` field (see [planning-atlas.md](planning-atlas.md)). Voyage API keys are configured in Atlas, not in LCM. Alternatively, set `autoCreateAtlasIndexes: true` in plugin config to have indexes created automatically on first connection.
+
+**Manual embedding fallback:** If auto-embedding is not supported in your Atlas project (e.g. "AutoEmbedding feature ... is not supported"), set `voyageApiKey` (or `LCM_VOYAGE_API_KEY`) with an [Atlas Model API key](https://www.mongodb.com/docs/voyageai/management/api-keys/). The plugin will use the Atlas Embedding API instead, store embeddings in a `content_embedding` field, and a Change Stream will process new or changed documents. Requires MongoDB replica set for Change Streams.
+
+**Summaries-only vector search:** Set `vectorSearchSummariesOnly: true` (or `LCM_VECTOR_SEARCH_SUMMARIES_ONLY=true`) to only create and use vector indexes for summaries. The messages vector index is skipped, messages are not embedded, and message search uses keyword/Atlas Search only. Useful when you want semantic search over summaries but not over raw messages.
 
 ### Recommended starting configuration
 

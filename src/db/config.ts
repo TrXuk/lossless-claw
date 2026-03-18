@@ -22,6 +22,8 @@ export type LcmConfig = {
   vectorSearchIndexSummaries: string;
   /** When true, create Atlas Search and Vector Search indexes if not already present (MongoDB only) */
   autoCreateAtlasIndexes: boolean;
+  /** When true, only create and use vector indexes for summaries (no messages vector index or embedding) */
+  vectorSearchSummariesOnly: boolean;
   /** Atlas Model API key for manual embeddings when auto-embedding is not supported. See https://www.mongodb.com/docs/voyageai/management/api-keys/ */
   voyageApiKey: string;
   /** Voyage embedding model for manual embeddings (default: voyage-3-large) */
@@ -131,6 +133,10 @@ export function resolveLcmConfig(
       env.LCM_AUTO_CREATE_ATLAS_INDEXES !== undefined
         ? env.LCM_AUTO_CREATE_ATLAS_INDEXES === "true"
         : toBool(pc.autoCreateAtlasIndexes) ?? false,
+    vectorSearchSummariesOnly:
+      env.LCM_VECTOR_SEARCH_SUMMARIES_ONLY !== undefined
+        ? env.LCM_VECTOR_SEARCH_SUMMARIES_ONLY === "true"
+        : toBool(pc.vectorSearchSummariesOnly) ?? false,
     voyageApiKey:
       env.LCM_VOYAGE_API_KEY?.trim() ?? toStr(pc.voyageApiKey) ?? toStr(pc.voyage_api_key) ?? "",
     voyageEmbeddingModel:

@@ -128,4 +128,22 @@ describe("resolveLcmConfig", () => {
   it("ships a manifest that accepts unlimited incremental depth", () => {
     expect(manifest.configSchema.properties.incrementalMaxDepth.minimum).toBe(-1);
   });
+
+  it("defaults vectorSearchSummariesOnly to false", () => {
+    const config = resolveLcmConfig({}, {});
+    expect(config.vectorSearchSummariesOnly).toBe(false);
+  });
+
+  it("reads vectorSearchSummariesOnly from plugin config", () => {
+    const config = resolveLcmConfig({}, { vectorSearchSummariesOnly: true });
+    expect(config.vectorSearchSummariesOnly).toBe(true);
+  });
+
+  it("LCM_VECTOR_SEARCH_SUMMARIES_ONLY env overrides plugin config", () => {
+    const config = resolveLcmConfig(
+      { LCM_VECTOR_SEARCH_SUMMARIES_ONLY: "true" } as NodeJS.ProcessEnv,
+      { vectorSearchSummariesOnly: false },
+    );
+    expect(config.vectorSearchSummariesOnly).toBe(true);
+  });
 });
