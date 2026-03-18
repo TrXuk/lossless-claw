@@ -69,7 +69,12 @@ function vectorSearchDefinition() {
 function vectorSearchDefinitionManual(numDimensions: number) {
   return {
     fields: [
-      { type: "vector" as const, path: "content_embedding", numDimensions },
+      {
+        type: "vector" as const,
+        path: "content_embedding",
+        numDimensions,
+        similarity: "cosine" as const,
+      },
       { type: "filter" as const, path: "conversationId" },
       { type: "filter" as const, path: "createdAt" },
     ],
