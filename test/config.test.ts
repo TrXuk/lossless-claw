@@ -146,4 +146,22 @@ describe("resolveLcmConfig", () => {
     );
     expect(config.vectorSearchSummariesOnly).toBe(true);
   });
+
+  it("defaults vectorSearchMessagesOnly to false", () => {
+    const config = resolveLcmConfig({}, {});
+    expect(config.vectorSearchMessagesOnly).toBe(false);
+  });
+
+  it("reads vectorSearchMessagesOnly from plugin config", () => {
+    const config = resolveLcmConfig({}, { vectorSearchMessagesOnly: true });
+    expect(config.vectorSearchMessagesOnly).toBe(true);
+  });
+
+  it("LCM_VECTOR_SEARCH_MESSAGES_ONLY env overrides plugin config", () => {
+    const config = resolveLcmConfig(
+      { LCM_VECTOR_SEARCH_MESSAGES_ONLY: "true" } as NodeJS.ProcessEnv,
+      { vectorSearchMessagesOnly: false },
+    );
+    expect(config.vectorSearchMessagesOnly).toBe(true);
+  });
 });

@@ -59,12 +59,16 @@ export async function createStores(
       );
     }
     const { db } = await getMongoDb(config.mongodbUri, config.mongodbDatabase);
+    // vectorSearchSummariesOnly and vectorSearchMessagesOnly are mutually exclusive; summaries-only wins if both set
+    const vectorSearchMessagesOnly =
+      config.vectorSearchMessagesOnly && !config.vectorSearchSummariesOnly;
     const indexConfig: AtlasIndexConfig = {
       searchIndexMessages: config.searchIndexMessages,
       searchIndexSummaries: config.searchIndexSummaries,
       vectorSearchIndexMessages: config.vectorSearchIndexMessages,
       vectorSearchIndexSummaries: config.vectorSearchIndexSummaries,
       vectorSearchSummariesOnly: config.vectorSearchSummariesOnly,
+      vectorSearchMessagesOnly,
     };
 
     let embeddingService: ReturnType<typeof createVoyageAtlasEmbeddingService> | undefined;
@@ -86,9 +90,14 @@ export async function createStores(
           const numDimensions = embeddingService.getModelDimensions();
           await ensureManualVectorIndexes(db, indexConfig, numDimensions);
           try {
+            const collections = config.vectorSearchSummariesOnly
+              ? ["summaries"]
+              : vectorSearchMessagesOnly
+                ? ["messages"]
+                : ["messages", "summaries"];
             embeddingChangeStream = startEmbeddingChangeStream(db, {
               embeddingService,
-              collections: config.vectorSearchSummariesOnly ? ["summaries"] : ["messages", "summaries"],
+              collections,
             });
           } catch (streamErr) {
             console.warn(
@@ -113,6 +122,7 @@ export async function createStores(
       embeddingService,
       embeddingMode,
       vectorSearchSummariesOnly: config.vectorSearchSummariesOnly,
+      vectorSearchMessagesOnly,
     };
 
     const auditStore = config.episodicAuditEnabled

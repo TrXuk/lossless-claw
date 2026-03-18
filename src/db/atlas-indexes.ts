@@ -39,6 +39,8 @@ export type AtlasIndexConfig = {
   vectorSearchIndexSummaries: string;
   /** When true, skip creating the messages vector index (summaries only) */
   vectorSearchSummariesOnly?: boolean;
+  /** When true, skip creating the summaries vector index (messages only) */
+  vectorSearchMessagesOnly?: boolean;
 };
 
 /** Atlas Search (full-text) index definition for messages/summaries content */
@@ -129,11 +131,15 @@ export async function ensureAtlasIndexes(
   const indexPromises: Promise<void>[] = [
     ensureSearchIndex(messages, config.searchIndexMessages, searchDef),
     ensureSearchIndex(summaries, config.searchIndexSummaries, searchDef),
-    ensureVectorSearchIndex(summaries, config.vectorSearchIndexSummaries, vectorDef),
   ];
   if (!config.vectorSearchSummariesOnly) {
     indexPromises.push(
       ensureVectorSearchIndex(messages, config.vectorSearchIndexMessages, vectorDef),
+    );
+  }
+  if (!config.vectorSearchMessagesOnly) {
+    indexPromises.push(
+      ensureVectorSearchIndex(summaries, config.vectorSearchIndexSummaries, vectorDef),
     );
   }
   await Promise.all(indexPromises);
@@ -156,11 +162,15 @@ export async function ensureManualVectorIndexes(
   const indexPromises: Promise<void>[] = [
     ensureSearchIndex(messages, config.searchIndexMessages, searchDef),
     ensureSearchIndex(summaries, config.searchIndexSummaries, searchDef),
-    ensureVectorSearchIndex(summaries, config.vectorSearchIndexSummaries, vectorDef),
   ];
   if (!config.vectorSearchSummariesOnly) {
     indexPromises.push(
       ensureVectorSearchIndex(messages, config.vectorSearchIndexMessages, vectorDef),
+    );
+  }
+  if (!config.vectorSearchMessagesOnly) {
+    indexPromises.push(
+      ensureVectorSearchIndex(summaries, config.vectorSearchIndexSummaries, vectorDef),
     );
   }
   await Promise.all(indexPromises);

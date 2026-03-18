@@ -60,6 +60,7 @@ export class SummaryStoreMongoDB {
   private readonly vectorSearchIndexSummaries: string;
   private readonly embeddingService?: VoyageAtlasEmbeddingService;
   private readonly embeddingMode: "auto" | "manual";
+  private readonly vectorSearchMessagesOnly: boolean;
 
   constructor(
     db: Db,
@@ -71,6 +72,7 @@ export class SummaryStoreMongoDB {
       vectorSearchIndexSummaries?: string;
       embeddingService?: VoyageAtlasEmbeddingService;
       embeddingMode?: "auto" | "manual";
+      vectorSearchMessagesOnly?: boolean;
     },
   ) {
     this.summaries = db.collection("summaries");
@@ -84,6 +86,7 @@ export class SummaryStoreMongoDB {
     this.vectorSearchIndexSummaries = options?.vectorSearchIndexSummaries ?? "lcm_summaries_vector";
     this.embeddingService = options?.embeddingService;
     this.embeddingMode = options?.embeddingMode ?? "auto";
+    this.vectorSearchMessagesOnly = options?.vectorSearchMessagesOnly ?? false;
   }
 
   async insertSummary(input: CreateSummaryInput): Promise<SummaryRecord> {
@@ -112,7 +115,7 @@ export class SummaryStoreMongoDB {
       sourceMessageTokenCount,
       createdAt: now,
     };
-    if (this.embeddingService && input.content?.trim()) {
+    if (this.embeddingService && input.content?.trim() && !this.vectorSearchMessagesOnly) {
       try {
         doc.content_embedding = await this.embeddingService.embedText(input.content);
       } catch (err) {
@@ -373,6 +376,10 @@ export class SummaryStoreMongoDB {
   async searchSummaries(input: SummarySearchInput): Promise<SummarySearchResult[]> {
     const limit = input.limit ?? 50;
 
+    if (this.vectorSearchMessagesOnly) {
+      const keywordInput = { ...input, mode: "full_text" as const };
+      return this.searchKeywordOrAtlasSummaries(keywordInput, limit);
+    }
     if (input.mode === "semantic") {
       return this.searchVectorSummaries(input, limit);
     }

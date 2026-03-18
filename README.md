@@ -144,6 +144,7 @@ Set `autoCreateAtlasIndexes: true` to have Atlas Search and Vector Search indexe
 | `vectorSearchIndexSummaries` | Atlas Vector Search index for summaries (default: `"lcm_summaries_vector"`) |
 | `autoCreateAtlasIndexes` | When `true`, create Atlas Search and Vector Search indexes if not present (default: `false`) |
 | `vectorSearchSummariesOnly` | When `true`, only create and use vector indexes for summaries; no messages vector index or embedding (default: `false`) |
+| `vectorSearchMessagesOnly` | When `true`, only create and use vector indexes for messages; no summaries vector index or embedding (default: `false`) |
 | `voyageApiKey` | Atlas Model API key for manual embeddings when auto-embedding is not supported. See [Model API Keys](https://www.mongodb.com/docs/voyageai/management/api-keys/). |
 | `voyageEmbeddingModel` | Model for manual embeddings (default: `voyage-3-large`) |
 | `episodicAuditEnabled` | When `true`, log tool calls to `audit_events` for episodic/audit memory; queryable via `lcm_grep` with `scope: "audit"` (default: `false`) |
@@ -190,6 +191,7 @@ When using MongoDB Atlas as the storage backend, the following variables enable 
 | `LCM_VECTOR_SEARCH_INDEX_SUMMARIES` | `lcm_summaries_vector` | Atlas Vector Search index name for the `summaries` collection |
 | `LCM_AUTO_CREATE_ATLAS_INDEXES` | `false` | When `true`, create Atlas Search and Vector Search indexes if not present |
 | `LCM_VECTOR_SEARCH_SUMMARIES_ONLY` | `false` | When `true`, only create and use vector indexes for summaries; no messages vector index or embedding |
+| `LCM_VECTOR_SEARCH_MESSAGES_ONLY` | `false` | When `true`, only create and use vector indexes for messages; no summaries vector index or embedding |
 | `LCM_VOYAGE_API_KEY` | — | Atlas Model API key for manual embeddings when auto-embedding is not supported. See [Model API Keys](https://www.mongodb.com/docs/voyageai/management/api-keys/). |
 | `LCM_VOYAGE_EMBEDDING_MODEL` | `voyage-3-large` | Model for manual embeddings |
 
@@ -198,6 +200,8 @@ When using MongoDB Atlas as the storage backend, the following variables enable 
 **Manual embedding fallback:** If auto-embedding is not supported in your Atlas project (e.g. "AutoEmbedding feature ... is not supported"), set `voyageApiKey` (or `LCM_VOYAGE_API_KEY`) with an [Atlas Model API key](https://www.mongodb.com/docs/voyageai/management/api-keys/). The plugin will use the Atlas Embedding API instead, store embeddings in a `content_embedding` field, and a Change Stream will process new or changed documents. Requires MongoDB replica set for Change Streams.
 
 **Summaries-only vector search:** Set `vectorSearchSummariesOnly: true` (or `LCM_VECTOR_SEARCH_SUMMARIES_ONLY=true`) to only create and use vector indexes for summaries. The messages vector index is skipped, messages are not embedded, and message search uses keyword/Atlas Search only. Useful when you want semantic search over summaries but not over raw messages.
+
+**Messages-only vector search:** Set `vectorSearchMessagesOnly: true` (or `LCM_VECTOR_SEARCH_MESSAGES_ONLY=true`) to only create and use vector indexes for messages. The summaries vector index is skipped, summaries are not embedded, and summary search uses keyword/Atlas Search only. Useful when you want semantic search over raw messages but not over summaries. Mutually exclusive with `vectorSearchSummariesOnly`; if both are set, summaries-only wins.
 
 **Episodic/audit memory:** Set `episodicAuditEnabled: true` (or `LCM_EPISODIC_AUDIT_ENABLED=true`) to log every tool call to an `audit_events` table/collection. Query the audit log with `lcm_grep(pattern: "...", scope: "audit")` for debugging agent behavior or replaying what happened.
 
